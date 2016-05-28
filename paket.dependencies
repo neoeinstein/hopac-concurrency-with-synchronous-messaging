@@ -1,0 +1,7 @@
+source https://nuget.org/api/v2
+
+nuget FsReveal
+nuget FSharp.Formatting ~> 2.14.3
+nuget FAKE
+nuget Hopac
+nuget Suave
