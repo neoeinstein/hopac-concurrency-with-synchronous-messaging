@@ -18,6 +18,11 @@
     font-feature-settings: "liga" 0;
 }
 
+.reveal.page .slides section {
+    padding: inherit;
+    box-sizing: inherit;
+}
+
 .reveal div.opListGroup {
     position:relative;
     left:-100px;
@@ -229,3 +234,4 @@
 
 .reveal .slides section .fragment.highlight-current-blue.current-fragment {
   color: #1b91ff; }
+
