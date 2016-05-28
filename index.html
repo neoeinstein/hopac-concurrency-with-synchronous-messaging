@@ -1,0 +1,1355 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Powering Concurrency with Synchronous Messaging</title>
+    <meta name="description" content="One of the four tenets in the Reactive Manifesto is asynchronous messaging, but what if we considered the alternative? Synchronous messaging may not be the sin we've all been warned against. Inspired by Concurrent ML and the concurrent synchronous processes model, we will discuss the concurrency primitives exposed by the Hopac library and how they can be composed to build highly-concurrent applications which benefit from lightweight threads, an optimized work scheduler, and the ability to react to multiple communication channels. All while avoiding some of the pitfalls of asynchronous messaging.">
+    <meta name="author" content="Marcus Griep">
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="//code.jquery.com/jquery-1.8.0.js"></script>
+    <script src="//code.jquery.com/ui/1.8.23/jquery-ui.js"></script>
+    <script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.2.1/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="//cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.2.1/css/bootstrap-combined.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/reveal.css">
+    <link rel="stylesheet" href="css/theme/Night.css" id="theme">
+    <link type="text/css" rel="stylesheet" href="fsharp.formatting/styles/style.css" />
+    <link type="text/css" rel="stylesheet" href="fsharp.formatting/styles/deedle.css" />
+    <link type="text/css" rel="stylesheet" href="css/custom.css" />
+    <script src="fsharp.formatting/styles/tips.js" type="text/javascript"></script>
+    <!-- For syntax highlighting -->
+    <link rel="stylesheet" href="lib/css/zenburn.css">
+    <link rel="stylesheet" href="css/fsreveal.css">
+    <!-- If the query includes 'print-pdf', include the PDF print sheet -->
+    <script>
+			if( window.location.search.match( /print-pdf/gi ) ) {
+				var link = document.createElement( 'link' );
+				link.rel = 'stylesheet';
+				link.type = 'text/css';
+				link.href = 'css/print/pdf.css';
+				document.getElementsByTagName( 'head' )[0].appendChild( link );
+			}
+    </script>
+    <!--[if lt IE 9]>
+    <script src="lib/js/html5shiv.js"></script>
+    <![endif]-->
+    <script language="javascript" type="text/javascript">
+        function init()
+        {
+            websocket = new WebSocket("ws://"+window.location.host+"/websocket");
+            websocket.onmessage = function(evt) { location.reload(); };
+        }
+        window.addEventListener("load", init, false);
+    </script>
+</head>
+<body>
+    <div class="reveal">
+        <div class="tip" id="fs1">namespace Hopac</div>
+<div class="tip" id="fs2">module Infixes<br /><br />from Hopac</div>
+<div class="tip" id="fs3">val always : x:&#39;a -&gt; _arg1:&#39;b -&gt; &#39;a<br /><br />Full name: Index.always</div>
+<div class="tip" id="fs4">val x : &#39;a</div>
+<div class="tip" id="fs5">val run : Job&lt;&#39;x&gt; -&gt; &#39;x<br /><br />Full name: Hopac.TopLevel.run</div>
+<div class="tip" id="fs6">type Job&lt;&#39;T&gt; =<br /><br />Full name: Hopac.Job&lt;_&gt;</div>
+<div class="tip" id="fs7">val unit : unit -&gt; Job&lt;unit&gt;<br /><br />Full name: Hopac.Job.unit</div>
+<div class="tip" id="fs8">val delayValueAsync : prior:Async&lt;&#39;a&gt; -&gt; Async&lt;&#39;a&gt;<br /><br />Full name: Index.delayValueAsync</div>
+<div class="tip" id="fs9">val prior : Async&lt;&#39;a&gt;</div>
+<div class="tip" id="fs10">val async : AsyncBuilder<br /><br />Full name: Microsoft.FSharp.Core.ExtraTopLevelOperators.async</div>
+<div class="tip" id="fs11">Multiple items<br />type Async<br />static member AsBeginEnd : computation:(&#39;Arg -&gt; Async&lt;&#39;T&gt;) -&gt; (&#39;Arg * AsyncCallback * obj -&gt; IAsyncResult) * (IAsyncResult -&gt; &#39;T) * (IAsyncResult -&gt; unit)<br />static member AwaitEvent : event:IEvent&lt;&#39;Del,&#39;T&gt; * ?cancelAction:(unit -&gt; unit) -&gt; Async&lt;&#39;T&gt; (requires delegate and &#39;Del :&gt; Delegate)<br />static member AwaitIAsyncResult : iar:IAsyncResult * ?millisecondsTimeout:int -&gt; Async&lt;bool&gt;<br />static member AwaitTask : task:Task -&gt; Async&lt;unit&gt;<br />static member AwaitTask : task:Task&lt;&#39;T&gt; -&gt; Async&lt;&#39;T&gt;<br />static member AwaitWaitHandle : waitHandle:WaitHandle * ?millisecondsTimeout:int -&gt; Async&lt;bool&gt;<br />static member CancelDefaultToken : unit -&gt; unit<br />static member Catch : computation:Async&lt;&#39;T&gt; -&gt; Async&lt;Choice&lt;&#39;T,exn&gt;&gt;<br />static member FromBeginEnd : beginAction:(AsyncCallback * obj -&gt; IAsyncResult) * endAction:(IAsyncResult -&gt; &#39;T) * ?cancelAction:(unit -&gt; unit) -&gt; Async&lt;&#39;T&gt;<br />static member FromBeginEnd : arg:&#39;Arg1 * beginAction:(&#39;Arg1 * AsyncCallback * obj -&gt; IAsyncResult) * endAction:(IAsyncResult -&gt; &#39;T) * ?cancelAction:(unit -&gt; unit) -&gt; Async&lt;&#39;T&gt;<br />static member FromBeginEnd : arg1:&#39;Arg1 * arg2:&#39;Arg2 * beginAction:(&#39;Arg1 * &#39;Arg2 * AsyncCallback * obj -&gt; IAsyncResult) * endAction:(IAsyncResult -&gt; &#39;T) * ?cancelAction:(unit -&gt; unit) -&gt; Async&lt;&#39;T&gt;<br />static member FromBeginEnd : arg1:&#39;Arg1 * arg2:&#39;Arg2 * arg3:&#39;Arg3 * beginAction:(&#39;Arg1 * &#39;Arg2 * &#39;Arg3 * AsyncCallback * obj -&gt; IAsyncResult) * endAction:(IAsyncResult -&gt; &#39;T) * ?cancelAction:(unit -&gt; unit) -&gt; Async&lt;&#39;T&gt;<br />static member FromContinuations : callback:((&#39;T -&gt; unit) * (exn -&gt; unit) * (OperationCanceledException -&gt; unit) -&gt; unit) -&gt; Async&lt;&#39;T&gt;<br />static member Ignore : computation:Async&lt;&#39;T&gt; -&gt; Async&lt;unit&gt;<br />static member OnCancel : interruption:(unit -&gt; unit) -&gt; Async&lt;IDisposable&gt;<br />static member Parallel : computations:seq&lt;Async&lt;&#39;T&gt;&gt; -&gt; Async&lt;&#39;T []&gt;<br />static member RunSynchronously : computation:Async&lt;&#39;T&gt; * ?timeout:int * ?cancellationToken:CancellationToken -&gt; &#39;T<br />static member Sleep : millisecondsDueTime:int -&gt; Async&lt;unit&gt;<br />static member Start : computation:Async&lt;unit&gt; * ?cancellationToken:CancellationToken -&gt; unit<br />static member StartAsTask : computation:Async&lt;&#39;T&gt; * ?taskCreationOptions:TaskCreationOptions * ?cancellationToken:CancellationToken -&gt; Task&lt;&#39;T&gt;<br />static member StartChild : computation:Async&lt;&#39;T&gt; * ?millisecondsTimeout:int -&gt; Async&lt;Async&lt;&#39;T&gt;&gt;<br />static member StartChildAsTask : computation:Async&lt;&#39;T&gt; * ?taskCreationOptions:TaskCreationOptions -&gt; Async&lt;Task&lt;&#39;T&gt;&gt;<br />static member StartImmediate : computation:Async&lt;unit&gt; * ?cancellationToken:CancellationToken -&gt; unit<br />static member StartWithContinuations : computation:Async&lt;&#39;T&gt; * continuation:(&#39;T -&gt; unit) * exceptionContinuation:(exn -&gt; unit) * cancellationContinuation:(OperationCanceledException -&gt; unit) * ?cancellationToken:CancellationToken -&gt; unit<br />static member SwitchToContext : syncContext:SynchronizationContext -&gt; Async&lt;unit&gt;<br />static member SwitchToNewThread : unit -&gt; Async&lt;unit&gt;<br />static member SwitchToThreadPool : unit -&gt; Async&lt;unit&gt;<br />static member TryCancelled : computation:Async&lt;&#39;T&gt; * compensation:(OperationCanceledException -&gt; unit) -&gt; Async&lt;&#39;T&gt;<br />static member CancellationToken : Async&lt;CancellationToken&gt;<br />static member DefaultCancellationToken : CancellationToken<br /><br />Full name: Microsoft.FSharp.Control.Async<br /><br />--------------------<br />type Async&lt;&#39;T&gt;<br /><br />Full name: Microsoft.FSharp.Control.Async&lt;_&gt;</div>
+<div class="tip" id="fs12">static member Async.Sleep : millisecondsDueTime:int -&gt; Async&lt;unit&gt;</div>
+<div class="tip" id="fs13">val printAsync : x:int -&gt; Async&lt;unit&gt;<br /><br />Full name: Index.printAsync</div>
+<div class="tip" id="fs14">val x : int</div>
+<div class="tip" id="fs15">val printfn : format:Printf.TextWriterFormat&lt;&#39;T&gt; -&gt; &#39;T<br /><br />Full name: Microsoft.FSharp.Core.ExtraTopLevelOperators.printfn</div>
+<div class="tip" id="fs16">static member Async.Start : computation:Async&lt;unit&gt; * ?cancellationToken:System.Threading.CancellationToken -&gt; unit</div>
+<div class="tip" id="fs17">static member Async.StartImmediate : computation:Async&lt;unit&gt; * ?cancellationToken:System.Threading.CancellationToken -&gt; unit</div>
+<div class="tip" id="fs18">static member Async.RunSynchronously : computation:Async&lt;&#39;T&gt; * ?timeout:int * ?cancellationToken:System.Threading.CancellationToken -&gt; &#39;T</div>
+<div class="tip" id="fs19">member AsyncBuilder.Return : value:&#39;T -&gt; Async&lt;&#39;T&gt;</div>
+<div class="tip" id="fs20">val delayValueJob : prior:Job&lt;&#39;a&gt; -&gt; Job&lt;&#39;a&gt;<br /><br />Full name: Index.delayValueJob</div>
+<div class="tip" id="fs21">val prior : Job&lt;&#39;a&gt;</div>
+<div class="tip" id="fs22">val job : JobBuilder<br /><br />Full name: Hopac.TopLevel.job</div>
+<div class="tip" id="fs23">val asJob : Job&lt;&#39;x&gt; -&gt; Job&lt;&#39;x&gt;<br /><br />Full name: Hopac.TopLevel.asJob</div>
+<div class="tip" id="fs24">val printJob : x:int -&gt; Job&lt;unit&gt;<br /><br />Full name: Index.printJob</div>
+<div class="tip" id="fs25">val queue : Job&lt;unit&gt; -&gt; unit<br /><br />Full name: Hopac.TopLevel.queue</div>
+<div class="tip" id="fs26">val timeOutMillis : int -&gt; Alt&lt;unit&gt;<br /><br />Full name: Hopac.TopLevel.timeOutMillis</div>
+<div class="tip" id="fs27">val start : Job&lt;unit&gt; -&gt; unit<br /><br />Full name: Hopac.TopLevel.start</div>
+<div class="tip" id="fs28">val result : &#39;x -&gt; Job&lt;&#39;x&gt;<br /><br />Full name: Hopac.Job.result</div>
+<div class="tip" id="fs29">type CellMsg =<br />&#160;&#160;| SetValue of string<br />&#160;&#160;| GetValue of IVar&lt;string&gt;<br /><br />Full name: Index.CellMsg</div>
+<div class="tip" id="fs30">union case CellMsg.SetValue: string -&gt; CellMsg</div>
+<div class="tip" id="fs31">Multiple items<br />val string : value:&#39;T -&gt; string<br /><br />Full name: Microsoft.FSharp.Core.Operators.string<br /><br />--------------------<br />type string = System.String<br /><br />Full name: Microsoft.FSharp.Core.string</div>
+<div class="tip" id="fs32">union case CellMsg.GetValue: IVar&lt;string&gt; -&gt; CellMsg</div>
+<div class="tip" id="fs33">Multiple items<br />type IVar&lt;&#39;T&gt; =<br />&#160;&#160;inherit Promise&lt;&#39;T&gt;<br />&#160;&#160;new : unit -&gt; IVar&lt;&#39;T&gt; + 2 overloads<br />&#160;&#160;nested type Fill<br />&#160;&#160;nested type FillFailure<br />&#160;&#160;nested type TryFill<br /><br />Full name: Hopac.IVar&lt;_&gt;<br /><br />--------------------<br />IVar() : unit<br />IVar(t: &#39;T) : unit<br />IVar(e: exn) : unit</div>
+<div class="tip" id="fs34">val spawnCellActor : initialValue:string -&gt; Job&lt;Ch&lt;CellMsg&gt;&gt;<br /><br />Full name: Index.spawnCellActor</div>
+<div class="tip" id="fs35">val initialValue : string</div>
+<div class="tip" id="fs36">Multiple items<br />type Ch&lt;&#39;T&gt; =<br />&#160;&#160;inherit Alt&lt;&#39;T&gt;<br />&#160;&#160;new : unit -&gt; Ch&lt;&#39;T&gt;<br /><br />Full name: Hopac.Ch&lt;_&gt;<br /><br />--------------------<br />Ch() : unit</div>
+<div class="tip" id="fs37">val commCh : Ch&lt;CellMsg&gt;</div>
+<div class="tip" id="fs38">val iterateServer : &#39;x -&gt; (&#39;x -&gt; #Job&lt;&#39;x&gt;) -&gt; Job&lt;unit&gt;<br /><br />Full name: Hopac.Job.iterateServer</div>
+<div class="tip" id="fs39">val x : string</div>
+<div class="tip" id="fs40">val msg : CellMsg</div>
+<div class="tip" id="fs41">val take : Ch&lt;&#39;x&gt; -&gt; Alt&lt;&#39;x&gt;<br /><br />Full name: Hopac.Ch.take</div>
+<div class="tip" id="fs42">val v : string</div>
+<div class="tip" id="fs43">val reply : IVar&lt;string&gt;</div>
+<div class="tip" id="fs44">val fill : IVar&lt;&#39;x&gt; -&gt; &#39;x -&gt; Job&lt;unit&gt;<br /><br />Full name: Hopac.IVar.fill</div>
+<div class="tip" id="fs45">val send : mbx:Ch&lt;&#39;a&gt; -&gt; msg:&#39;a -&gt; Job&lt;unit&gt;<br /><br />Full name: Index.send</div>
+<div class="tip" id="fs46">val mbx : Ch&lt;&#39;a&gt;</div>
+<div class="tip" id="fs47">val msg : &#39;a</div>
+<div class="tip" id="fs48">val send : Ch&lt;&#39;x&gt; -&gt; &#39;x -&gt; Job&lt;unit&gt;<br /><br />Full name: Hopac.Ch.send</div>
+<div class="tip" id="fs49">val sendAndReceive : mbx:Ch&lt;&#39;a&gt; -&gt; toMsg:(IVar&lt;&#39;b&gt; -&gt; &#39;a) -&gt; Job&lt;&#39;b&gt;<br /><br />Full name: Index.sendAndReceive</div>
+<div class="tip" id="fs50">val toMsg : (IVar&lt;&#39;b&gt; -&gt; &#39;a)</div>
+<div class="tip" id="fs51">val reply : IVar&lt;&#39;b&gt;</div>
+<div class="tip" id="fs52">val read : IVar&lt;&#39;x&gt; -&gt; Alt&lt;&#39;x&gt;<br /><br />Full name: Hopac.IVar.read</div>
+<div class="tip" id="fs53">val cell : Ch&lt;CellMsg&gt;</div>
+<div class="tip" id="fs54">val n1 : string</div>
+<div class="tip" id="fs55">val n2 : string</div>
+<div class="tip" id="fs56">type Msg =<br />&#160;&#160;| NetworkMessage of string<br />&#160;&#160;| Timeout<br /><br />Full name: Index.Msg</div>
+<div class="tip" id="fs57">union case Msg.NetworkMessage: string -&gt; Msg</div>
+<div class="tip" id="fs58">union case Msg.Timeout: Msg</div>
+<div class="tip" id="fs59">val networkComm : Alt&lt;string&gt;<br /><br />Full name: Index.networkComm</div>
+<div class="tip" id="fs60">type Alt&lt;&#39;T&gt; =<br />&#160;&#160;inherit Job&lt;&#39;T&gt;<br /><br />Full name: Hopac.Alt&lt;_&gt;</div>
+<div class="tip" id="fs61">val choose : seq&lt;#Alt&lt;&#39;x&gt;&gt; -&gt; Alt&lt;&#39;x&gt;<br /><br />Full name: Hopac.Alt.choose</div>
+<div class="tip" id="fs62">val afterFun : (&#39;x -&gt; &#39;y) -&gt; Alt&lt;&#39;x&gt; -&gt; Alt&lt;&#39;y&gt;<br /><br />Full name: Hopac.Alt.afterFun</div>
+<div class="tip" id="fs63">val alwaysWithPrepare : x:int -&gt; Alt&lt;int&gt;<br /><br />Full name: Index.alwaysWithPrepare</div>
+<div class="tip" id="fs64">val prepareFun : (unit -&gt; #Alt&lt;&#39;x&gt;) -&gt; Alt&lt;&#39;x&gt;<br /><br />Full name: Hopac.Alt.prepareFun</div>
+<div class="tip" id="fs65">val always : &#39;x -&gt; Alt&lt;&#39;x&gt;<br /><br />Full name: Hopac.Alt.always</div>
+<div class="tip" id="fs66">val resultPerf : Alt&lt;int&gt;<br /><br />Full name: Index.resultPerf</div>
+<div class="tip" id="fs67">val map : (&#39;x -&gt; &#39;y) -&gt; Job&lt;&#39;x&gt; -&gt; Job&lt;&#39;y&gt;<br /><br />Full name: Hopac.Job.map</div>
+<div class="tip" id="fs68">type Cell&lt;&#39;a&gt; =<br />&#160;&#160;{getCh: Ch&lt;&#39;a&gt;;<br />&#160;&#160;&#160;putCh: Ch&lt;&#39;a&gt;;}<br /><br />Full name: Index.Cell&lt;_&gt;</div>
+<div class="tip" id="fs69">Cell.getCh: Ch&lt;&#39;a&gt;</div>
+<div class="tip" id="fs70">Cell.putCh: Ch&lt;&#39;a&gt;</div>
+<div class="tip" id="fs71">val cell : x:&#39;a -&gt; Job&lt;Cell&lt;&#39;a&gt;&gt;<br /><br />Full name: Index.cell</div>
+<div class="tip" id="fs72">val c : Cell&lt;&#39;a&gt;</div>
+<div class="tip" id="fs73">val give : Ch&lt;&#39;x&gt; -&gt; &#39;x -&gt; Alt&lt;unit&gt;<br /><br />Full name: Hopac.Ch.give</div>
+<div class="tip" id="fs74">val put : c:Cell&lt;&#39;a&gt; -&gt; v:&#39;a -&gt; Alt&lt;unit&gt;<br /><br />Full name: Index.put</div>
+<div class="tip" id="fs75">val v : &#39;a</div>
+<div class="tip" id="fs76">val get : c:Cell&lt;&#39;a&gt; -&gt; Alt&lt;&#39;a&gt;<br /><br />Full name: Index.get</div>
+<div class="tip" id="fs77">val myCell : Cell&lt;string&gt;</div>
+<div class="tip" id="fs78">type CellWithReply&lt;&#39;a&gt; =<br />&#160;&#160;{getCh: Ch&lt;&#39;a&gt;;<br />&#160;&#160;&#160;putCh: Ch&lt;&#39;a * IVar&lt;&#39;a&gt;&gt;;}<br /><br />Full name: Index.CellWithReply&lt;_&gt;</div>
+<div class="tip" id="fs79">CellWithReply.getCh: Ch&lt;&#39;a&gt;</div>
+<div class="tip" id="fs80">CellWithReply.putCh: Ch&lt;&#39;a * IVar&lt;&#39;a&gt;&gt;</div>
+<div class="tip" id="fs81">val handlePut : oldVal:&#39;a -&gt; newVal:&#39;b * reply:IVar&lt;&#39;a&gt; -&gt; Job&lt;&#39;b&gt;<br /><br />Full name: Index.handlePut</div>
+<div class="tip" id="fs82">val oldVal : &#39;a</div>
+<div class="tip" id="fs83">val newVal : &#39;b</div>
+<div class="tip" id="fs84">val reply : IVar&lt;&#39;a&gt;</div>
+<div class="tip" id="fs85">val cell : x:&#39;a -&gt; Job&lt;CellWithReply&lt;&#39;a&gt;&gt;<br /><br />Full name: Index.cell</div>
+<div class="tip" id="fs86">val c : CellWithReply&lt;&#39;a&gt;</div>
+<div class="tip" id="fs87">val afterJob : (&#39;x -&gt; #Job&lt;&#39;y&gt;) -&gt; Alt&lt;&#39;x&gt; -&gt; Alt&lt;&#39;y&gt;<br /><br />Full name: Hopac.Alt.afterJob</div>
+<div class="tip" id="fs88">val get : c:CellWithReply&lt;&#39;a&gt; -&gt; Alt&lt;&#39;a&gt;<br /><br />Full name: Index.get</div>
+<div class="tip" id="fs89">val put : c:CellWithReply&lt;&#39;a&gt; -&gt; v:&#39;a -&gt; Alt&lt;&#39;a&gt;<br /><br />Full name: Index.put</div>
+<div class="tip" id="fs90">val putSyncOnReply : c:CellWithReply&lt;&#39;a&gt; -&gt; v:&#39;a -&gt; Alt&lt;&#39;a&gt;<br /><br />Full name: Index.putSyncOnReply</div>
+<div class="tip" id="fs91">val prepareJob : (unit -&gt; #Job&lt;&#39;c&gt;) -&gt; Alt&lt;&#39;x&gt; (requires &#39;c :&gt; Alt&lt;&#39;x&gt;)<br /><br />Full name: Hopac.Alt.prepareJob</div>
+<div class="tip" id="fs92">val myCell : CellWithReply&lt;string&gt;</div>
+<div class="tip" id="fs93">val value : string</div>
+<div class="tip" id="fs94">type CellWithNack&lt;&#39;a&gt; =<br />&#160;&#160;{getCh: Ch&lt;&#39;a&gt;;<br />&#160;&#160;&#160;putCh: Ch&lt;&#39;a * Promise&lt;unit&gt; * Ch&lt;&#39;a&gt;&gt;;}<br /><br />Full name: Index.CellWithNack&lt;_&gt;</div>
+<div class="tip" id="fs95">CellWithNack.getCh: Ch&lt;&#39;a&gt;</div>
+<div class="tip" id="fs96">CellWithNack.putCh: Ch&lt;&#39;a * Promise&lt;unit&gt; * Ch&lt;&#39;a&gt;&gt;</div>
+<div class="tip" id="fs97">Multiple items<br />type Promise&lt;&#39;T&gt; =<br />&#160;&#160;inherit Alt&lt;&#39;T&gt;<br />&#160;&#160;new : tJ:Job&lt;&#39;T&gt; -&gt; Promise&lt;&#39;T&gt; + 2 overloads<br />&#160;&#160;member Full : bool<br /><br />Full name: Hopac.Promise&lt;_&gt;<br /><br />--------------------<br />Promise(tJ: Job&lt;&#39;T&gt;) : unit<br />Promise(value: &#39;T) : unit<br />Promise(e: exn) : unit</div>
+<div class="tip" id="fs98">type unit = Unit<br /><br />Full name: Microsoft.FSharp.Core.unit</div>
+<div class="tip" id="fs99">val handlePut : oldVal:&#39;a -&gt; newVal:&#39;a * nack:Promise&lt;&#39;b&gt; * replyCh:Ch&lt;&#39;a&gt; -&gt; Alt&lt;&#39;a&gt;<br /><br />Full name: Index.handlePut</div>
+<div class="tip" id="fs100">val newVal : &#39;a</div>
+<div class="tip" id="fs101">val nack : Promise&lt;&#39;b&gt;</div>
+<div class="tip" id="fs102">val replyCh : Ch&lt;&#39;a&gt;</div>
+<div class="tip" id="fs103">val read : Promise&lt;&#39;x&gt; -&gt; Alt&lt;&#39;x&gt;<br /><br />Full name: Hopac.Promise.read</div>
+<div class="tip" id="fs104">val cell : x:&#39;a -&gt; Job&lt;CellWithNack&lt;&#39;a&gt;&gt;<br /><br />Full name: Index.cell</div>
+<div class="tip" id="fs105">val c : CellWithNack&lt;&#39;a&gt;</div>
+<div class="tip" id="fs106">val get : c:CellWithNack&lt;&#39;a&gt; -&gt; Alt&lt;&#39;a&gt;<br /><br />Full name: Index.get</div>
+<div class="tip" id="fs107">val putWithNack : c:CellWithNack&lt;&#39;a&gt; -&gt; v:&#39;a -&gt; Alt&lt;&#39;a&gt;<br /><br />Full name: Index.putWithNack</div>
+<div class="tip" id="fs108">val withNackJob : (Promise&lt;unit&gt; -&gt; #Job&lt;&#39;c&gt;) -&gt; Alt&lt;&#39;x&gt; (requires &#39;c :&gt; Alt&lt;&#39;x&gt;)<br /><br />Full name: Hopac.Alt.withNackJob</div>
+<div class="tip" id="fs109">val nack : Promise&lt;unit&gt;</div>
+<div class="tip" id="fs110">val myCell : CellWithNack&lt;string&gt;</div>
+<div class="tip" id="fs111">val handlePut : oldVal:&#39;a -&gt; newVal:&#39;a * nack:Alt&lt;&#39;b&gt; * replyCh:Ch&lt;&#39;a&gt; -&gt; Alt&lt;&#39;a&gt;<br /><br />Full name: Index.handlePut</div>
+<div class="tip" id="fs112">val nack : Alt&lt;&#39;b&gt;</div>
+<div class="tip" id="fs113">val failableServer : ch:Ch&lt;int&gt; -&gt; Job&lt;&#39;a&gt;<br /><br />Full name: Index.failableServer</div>
+<div class="tip" id="fs114">val ch : Ch&lt;int&gt;</div>
+<div class="tip" id="fs115">val forever : Job&lt;unit&gt; -&gt; Job&lt;&#39;b&gt;<br /><br />Full name: Hopac.Job.forever</div>
+<div class="tip" id="fs116">val value : int</div>
+<div class="tip" id="fs117">val failwith : message:string -&gt; &#39;T<br /><br />Full name: Microsoft.FSharp.Core.Operators.failwith</div>
+<div class="tip" id="fs118">val withSupervisor : supervise:(&#39;a -&gt; &#39;b) -&gt; job:&#39;a -&gt; &#39;b<br /><br />Full name: Index.withSupervisor</div>
+<div class="tip" id="fs119">val supervise : (&#39;a -&gt; &#39;b)</div>
+<div class="tip" id="fs120">val job : &#39;a</div>
+<div class="tip" id="fs121">val restartOnException : onRestart:Job&lt;unit&gt; -&gt; server:Job&lt;unit&gt; -&gt; Job&lt;unit&gt;<br /><br />Full name: Index.restartOnException</div>
+<div class="tip" id="fs122">val onRestart : Job&lt;unit&gt;</div>
+<div class="tip" id="fs123">val server : Job&lt;unit&gt;</div>
+<div class="tip" id="fs124">Multiple items<br />val exn : exn<br /><br />--------------------<br />type exn = System.Exception<br /><br />Full name: Microsoft.FSharp.Core.exn</div>
+<div class="tip" id="fs125">System.Exception.GetType() : System.Type</div>
+<div class="tip" id="fs126">property System.Exception.Message: string</div>
+<div class="tip" id="fs127">val evilCh : Ch&lt;int&gt;</div>
+<div class="tip" id="fs128">val supervisor : (Job&lt;unit&gt; -&gt; Job&lt;unit&gt;)</div>
+<div class="tip" id="fs129">val start : Job&lt;unit&gt; -&gt; Job&lt;unit&gt;<br /><br />Full name: Hopac.Job.start</div>
+
+        <!-- Any section element inside of this container is displayed as a slide -->
+        <div class="slides">
+            <section >
+<h2>Powering Concurrency with Synchronous Messaging</h2>
+<br/>
+<br/>
+<h3>Marcus Griep</h3>
+<aside class="notes">
+0:45<br/>
+Introduce self<br/>
+Lead software engineer with Cimpress<br/>
+Lead a squad of engineers<br/>
+</aside>
+</section>
+<section >
+<section >
+<h2>The Reactive Mainfesto</h2>
+<ul style="font-size:125%">
+<li class="fragment fade-down">Responsive</li>
+<li class="fragment fade-down">Resilient</li>
+<li class="fragment fade-down">Elastic</li>
+<li class="fragment fade-down">Message-Driven</li>
+</ul>
+<aside class="notes">
+2:00<br/>
+Model for systems architecture<br/>
+Millisecond response times<br/>
+100% uptime/fault-tolerance<br/>
+Highly-scalable systems<br/>
+Evolve over time<br/>
+</aside>
+</section>
+<section >
+<h3>Message-Driven</h3>
+<p>Reactive Systems rely on <span class="fragment highlight-blue" data-fragment-index="2">asynchronous message-passing</span> to <span class="fragment highlight-green" data-fragment-index="4">establish a boundary between
+components</span> that ensures loose coupling, isolation and location transparency. <span class="fragment fade-out" data-fragment-index="1">This boundary also provides the means to
+delegate failures as messages. Employing explicit message-passing enables load management, elasticity, and flow control
+by shaping and monitoring the message queues in the system and applying back-pressure when necessary. Location
+transparent messaging as a means of communication makes it possible for the management of failure to work with the same
+constructs and semantics across a cluster or within a single host.</span> <span class="fragment highlight-blue" data-fragment-index="3">Non-blocking communication</span>
+allows recipients to <span class="fragment highlight-green" data-fragment-index="5">only consume resources while active</span>, leading to less system overhead.</p>
+<aside class="notes">
+3:00<br/>
+Cut out cruft and focus<br/>
+Async & non-blocking<br/>
+What reasons does the reactive manifesto give for async and non-blocking<br/>
+Asynchronous message-passing: establishes component boundaries<br/>
+Non-blocking: threads don't consume resources while idle<br/>
+</aside>
+</section>
+<section >
+<h2>Loopholes!</h2>
+<br/>
+<h3 class="fragment" style="color:rgb(45,189,75)"><em>Synchronous messaging inside a component!</em></h3>
+<br/>
+<dl>
+<dt class="fragment">Asynchronous message-passing</dt>
+<dd class="fragment fade-down">Establishes component boundaries</dd>
+<br/>
+<dt class="fragment">Non-blocking communication</dt>
+<dd class="fragment fade-down">Threads don't consume resources while idle</dd>
+</dl>
+<div class="fragment fade-up" style="margin-top:1.5em;font-size:80%;color:rgb(215,215,215)">Note: A "thread" refers to a thread of execution,<br/><em>not an operating system thread.</em></div>
+<aside class="notes">
+4:00<br/>
+</aside>
+</section>
+<section >
+<h2>The Reactive Manifesto</h2>
+<div class="fragment fade-up" style="color:rgb(45,90,180);font-size:200%;font-weight:bold;margin-top:2em"><em>Still not a law!</em></div>
+</section>
+</section>
+<section >
+<section >
+<h3>Asynchronous message-passing</h3>
+<h4>Postal System</h4>
+<div>
+<img src="images/mailbox.jpg" alt="Mailbox" width="350" />
+</div>
+<ul>
+<li class="fragment fade-down">Unbounded Mailboxes</li>
+<li class="fragment fade-down">Processes <code>send</code> messages</li>
+<li class="fragment fade-down">At-most-once delivery</li>
+<li class="fragment fade-down">Better guarantees, at a cost</li>
+<li class="fragment fade-down">Implemented by actor systems:
+<ul>
+<li>Akka.net</li><li>Orleans</li>
+</ul></li>
+</ul>
+<aside class="notes">
+5:00<br/>
+Characterized by:<br/>
+Recipients have unbounded mailboxes (or bounded boxes that overflow as dead letters)<br/>
+Once sent, sender doesn't have view of the message status<br/>
+Getting better guarantees requires tracking of some sort, either by the recipient or system<br/>
+Existing frameworks: Akka/.Net, Orleans<br/>
+</aside>
+</section>
+<section >
+<h3>Synchronous message-passing</h3>
+<h4>Rendezvous Point</h4>
+<div>
+<img src="images/ISO_7010_E007.svg" alt="Meeting Point" width="250" />
+</div>
+<ul>
+<li class="fragment fade-down">Channels</li>
+<li class="fragment fade-down">Processes <code>give</code> and <code>take</code> messages</li>
+<li class="fragment fade-down">Exactly-once delivery</li>
+<li class="fragment fade-down">Examples include:
+<ul>
+<li>Concurrent ML / Go / Racket</li>
+<li>Hopac / Clojure's core.async</li>
+</ul>
+</li>
+</ul>
+<aside class="notes">
+6:00<br/>
+No buffer<br/>
+Communication occurs over a channel and requires both parties to a communication to be there<br/>
+Offers to give or take can be withdrawn if another communication alternative is available<br/>
+Don't want to wait for the counterparty to receive your message? That's ok. Spawn a process to wait for you instead.<br/>
+I will refer to it as synchronous rendezvous<br/>
+</aside>
+</section>
+</section>
+<section >
+<section >
+<h2>Why synchronous rendezvous?</h2>
+<ul>
+<li class="fragment">Sender <em>and</em> recipient share common knowledge of transmission</li>
+<li class="fragment">Failure mode is typically deadlock</li>
+<li class="fragment">Semantics of local and distributed interactions are different</li>
+</ul>
+<aside class="notes">
+10:00<br/>
+Async has low overhead, but no sync info to sender<br/>
+I don't like deadlock!!<br/>
+Alternative: Error detection delayed until buffer exhausted (or memory)<br/>
+With local comm, client can know if server accepted request<br/>
+Because async is a weaker mechanism, it reduces local case to distributed case<br/>
+Some think this is an argument in favor of async<br/>
+Should provide abstraction for interacting with server<br/>
+Semantics of that abstraction are different from distributed case<br/>
+Dirty little secret: Akka/.net "optimizes" local communication<br/>
+Within a process, Akka.net optimizes to directly delivering messages, avoiding the postal system, but that's<br/>
+like going to the postbox and dropping off a letter for your next-door neighbor. The postman optimizes the process,<br/>
+bringing the letter directly to your neighbor's mailbox. Meanwhile, your neighbor has been standing next to his<br/>
+mailbox eagerly awaiting a new message. As soon as the postman drops off the letter, your neighbor springs into<br/>
+action to process the message. If you are counting on a reply, you've included your own self-addressed stamped<br/>
+envelope, and your neighbor repeats the process to send you the reply while you stand next to your mailbox.<br/>
+</aside>
+</section>
+<section >
+<h3>Local communication with asynchronous messaging</h3>
+<ul>
+<li class="fragment">Drop off letter in postbox</li>
+<li class="fragment">Mail carrier recognizes the letter is local<div class="fragment fade-down">and goes to the address</div></li>
+<li class="fragment">Mail carrier hand-delivers it<div class="fragment fade-down">to your neighbor's mailbox</div><div class="fragment fade-down">while your neighbor watches</div></li>
+<li class="fragment">Your neighbor pulls the letter out of the mailbox</li>
+</ul>
+<aside class="notes">
+What if you need a reply?<br/>
+</aside>
+</section>
+<section >
+<h3>Local communication with synchronous rendezvous</h3>
+<ul>
+<li class="fragment">You go to rendezvous location<div class="fragment fade-down">and hand the letter to your neighbor</div></li>
+</ul>
+<aside class="notes">
+What if you need a reply?<br/>
+</aside>
+</section>
+</section>
+<section >
+<h2><a href="https://hopac.github.io/Hopac/Hopac.html">Hopac</a></h2>
+<ul>
+<li class="fragment fade-down">F# library <small class="fragment fade-left">(not a framework)</small></li>
+<li class="fragment fade-down">Inspired by Concurrent ML</li>
+<li class="fragment fade-down">Uses synchronous rendezvous</li>
+<li class="fragment fade-down">Provides composable primitives</li>
+</ul>
+<aside class="notes">
+12:00<br/>
+Now let's move on and talk about Hopac.<br/>
+</aside>
+</section>
+<section >
+<section >
+<h3>Comparison to F# Async</h3>
+<div class="fragment">
+<div style="font-size:125%">F# Async</div>
+<ul>
+<li class="fragment fade-down">Run on threadpool threads</li>
+<li class="fragment fade-down">Default threadpool scheduler</li>
+</ul>
+</div>
+<br />
+<div class="fragment">
+<div style="font-size:125%">Hopac</div>
+<ul>
+<li class="fragment fade-down">Lightweight threads: <code>Job<'x></code></li>
+<li class="fragment fade-down">Run on dedicated Hopac threads</li>
+<li class="fragment fade-down">Cooperative scheduler</li>
+</ul>
+</div>
+<aside class="notes">
+One Hopac thread per logical processor<br/>
+</aside>
+</section>
+<section >
+<h3>Using <code>async{}</code></h3>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+<span class="l">12: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs8', 10)" onmouseover="showTip(event, 'fs8', 10)" class="f">delayValueAsync</span> <span onmouseout="hideTip(event, 'fs9', 11)" onmouseover="showTip(event, 'fs9', 11)" class="i">prior</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs10', 12)" onmouseover="showTip(event, 'fs10', 12)" class="i">async</span> {
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs4', 13)" onmouseover="showTip(event, 'fs4', 13)" class="i">x</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs9', 14)" onmouseover="showTip(event, 'fs9', 14)" class="i">prior</span>
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs11', 15)" onmouseover="showTip(event, 'fs11', 15)" class="t">Async</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs12', 16)" onmouseover="showTip(event, 'fs12', 16)" class="f">Sleep</span> <span class="n">1</span>
+  <span class="k">return</span> <span onmouseout="hideTip(event, 'fs4', 17)" onmouseover="showTip(event, 'fs4', 17)" class="i">x</span>
+}
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs13', 18)" onmouseover="showTip(event, 'fs13', 18)" class="f">printAsync</span> <span onmouseout="hideTip(event, 'fs14', 19)" onmouseover="showTip(event, 'fs14', 19)" class="i">x</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs10', 20)" onmouseover="showTip(event, 'fs10', 20)" class="i">async</span> {
+  <span onmouseout="hideTip(event, 'fs15', 21)" onmouseover="showTip(event, 'fs15', 21)" class="f">printfn</span> <span class="s">&quot;</span><span class="pf">%i</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs14', 22)" onmouseover="showTip(event, 'fs14', 22)" class="i">x</span>
+}
+
+<span onmouseout="hideTip(event, 'fs11', 23)" onmouseover="showTip(event, 'fs11', 23)" class="t">Async</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs16', 24)" onmouseover="showTip(event, 'fs16', 24)" class="f">Start</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs11', 25)" onmouseover="showTip(event, 'fs11', 25)" class="t">Async</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs12', 26)" onmouseover="showTip(event, 'fs12', 26)" class="f">Sleep</span> <span class="n">1</span>
+<span onmouseout="hideTip(event, 'fs11', 27)" onmouseover="showTip(event, 'fs11', 27)" class="t">Async</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs17', 28)" onmouseover="showTip(event, 'fs17', 28)" class="f">StartImmediate</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs13', 29)" onmouseover="showTip(event, 'fs13', 29)" class="f">printAsync</span> <span class="n">23</span> 
+<span onmouseout="hideTip(event, 'fs11', 30)" onmouseover="showTip(event, 'fs11', 30)" class="t">Async</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs18', 31)" onmouseover="showTip(event, 'fs18', 31)" class="f">RunSynchronously</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs8', 32)" onmouseover="showTip(event, 'fs8', 32)" class="f">delayValueAsync</span> (<span onmouseout="hideTip(event, 'fs10', 33)" onmouseover="showTip(event, 'fs10', 33)" class="i">async</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs19', 34)" onmouseover="showTip(event, 'fs19', 34)" class="f">Return</span> <span class="n">4</span>)
+</code></pre></td>
+</tr>
+</table>
+</section>
+<section >
+<h3>Using <code>job{}</code></h3>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+<span class="l">12: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs20', 35)" onmouseover="showTip(event, 'fs20', 35)" class="f">delayValueJob</span> <span onmouseout="hideTip(event, 'fs21', 36)" onmouseover="showTip(event, 'fs21', 36)" class="i">prior</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 37)" onmouseover="showTip(event, 'fs22', 37)" class="i">job</span> {
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs4', 38)" onmouseover="showTip(event, 'fs4', 38)" class="i">x</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs21', 39)" onmouseover="showTip(event, 'fs21', 39)" class="i">prior</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs23', 40)" onmouseover="showTip(event, 'fs23', 40)" class="f">asJob</span>
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs11', 41)" onmouseover="showTip(event, 'fs11', 41)" class="t">Async</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs12', 42)" onmouseover="showTip(event, 'fs12', 42)" class="f">Sleep</span> <span class="n">1</span>
+  <span class="k">return</span> <span onmouseout="hideTip(event, 'fs4', 43)" onmouseover="showTip(event, 'fs4', 43)" class="i">x</span>
+}
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs24', 44)" onmouseover="showTip(event, 'fs24', 44)" class="f">printJob</span> <span onmouseout="hideTip(event, 'fs14', 45)" onmouseover="showTip(event, 'fs14', 45)" class="i">x</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 46)" onmouseover="showTip(event, 'fs22', 46)" class="i">job</span> {
+  <span onmouseout="hideTip(event, 'fs15', 47)" onmouseover="showTip(event, 'fs15', 47)" class="f">printfn</span> <span class="s">&quot;</span><span class="pf">%i</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs14', 48)" onmouseover="showTip(event, 'fs14', 48)" class="i">x</span>
+}
+
+<span onmouseout="hideTip(event, 'fs25', 49)" onmouseover="showTip(event, 'fs25', 49)" class="f">queue</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs26', 50)" onmouseover="showTip(event, 'fs26', 50)" class="f">timeOutMillis</span> <span class="n">1</span>
+<span onmouseout="hideTip(event, 'fs27', 51)" onmouseover="showTip(event, 'fs27', 51)" class="f">start</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs24', 52)" onmouseover="showTip(event, 'fs24', 52)" class="f">printJob</span> <span class="n">23</span> 
+<span onmouseout="hideTip(event, 'fs5', 53)" onmouseover="showTip(event, 'fs5', 53)" class="f">run</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs20', 54)" onmouseover="showTip(event, 'fs20', 54)" class="f">delayValueJob</span> (<span onmouseout="hideTip(event, 'fs6', 55)" onmouseover="showTip(event, 'fs6', 55)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs28', 56)" onmouseover="showTip(event, 'fs28', 56)" class="f">result</span> <span class="n">4</span>)
+</code></pre></td>
+</tr>
+</table>
+<aside class="notes">
+13:00<br/>
+Note use of `asJob`<br/>
+Provides bind for `async`, `job`, and `Task`<br/>
+</aside>
+</section>
+<section >
+<h3>Actor look-a-like</h3>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">type</span> <span onmouseout="hideTip(event, 'fs29', 57)" onmouseover="showTip(event, 'fs29', 57)" class="t">CellMsg</span> <span class="o">=</span>
+  | <span onmouseout="hideTip(event, 'fs30', 58)" onmouseover="showTip(event, 'fs30', 58)" class="p">SetValue</span> <span class="k">of</span> <span onmouseout="hideTip(event, 'fs31', 59)" onmouseover="showTip(event, 'fs31', 59)" class="t">string</span>
+  | <span onmouseout="hideTip(event, 'fs32', 60)" onmouseover="showTip(event, 'fs32', 60)" class="p">GetValue</span> <span class="k">of</span> <span onmouseout="hideTip(event, 'fs33', 61)" onmouseover="showTip(event, 'fs33', 61)" class="t">IVar</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs31', 62)" onmouseover="showTip(event, 'fs31', 62)" class="t">string</span><span class="o">&gt;</span>
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment">
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+<span class="l">12: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs34', 63)" onmouseover="showTip(event, 'fs34', 63)" class="f">spawnCellActor</span> <span onmouseout="hideTip(event, 'fs35', 64)" onmouseover="showTip(event, 'fs35', 64)" class="i">initialValue</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs6', 65)" onmouseover="showTip(event, 'fs6', 65)" class="t">Job</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs36', 66)" onmouseover="showTip(event, 'fs36', 66)" class="t">Ch</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs29', 67)" onmouseover="showTip(event, 'fs29', 67)" class="t">CellMsg</span><span class="o">&gt;</span><span class="o">&gt;</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 68)" onmouseover="showTip(event, 'fs22', 68)" class="i">job</span> {
+  <span class="k">let</span> <span onmouseout="hideTip(event, 'fs37', 69)" onmouseover="showTip(event, 'fs37', 69)" class="i">commCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 70)" onmouseover="showTip(event, 'fs36', 70)" class="t">Ch</span> ()
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs6', 71)" onmouseover="showTip(event, 'fs6', 71)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs38', 72)" onmouseover="showTip(event, 'fs38', 72)" class="f">iterateServer</span> <span onmouseout="hideTip(event, 'fs35', 73)" onmouseover="showTip(event, 'fs35', 73)" class="i">initialValue</span> <span class="o">&lt;|</span> <span class="k">fun</span> <span onmouseout="hideTip(event, 'fs39', 74)" onmouseover="showTip(event, 'fs39', 74)" class="i">x</span> <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs22', 75)" onmouseover="showTip(event, 'fs22', 75)" class="i">job</span> {
+    <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs40', 76)" onmouseover="showTip(event, 'fs40', 76)" class="i">msg</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 77)" onmouseover="showTip(event, 'fs36', 77)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 78)" onmouseover="showTip(event, 'fs41', 78)" class="f">take</span> <span onmouseout="hideTip(event, 'fs37', 79)" onmouseover="showTip(event, 'fs37', 79)" class="i">commCh</span>
+    <span class="k">match</span> <span onmouseout="hideTip(event, 'fs40', 80)" onmouseover="showTip(event, 'fs40', 80)" class="i">msg</span> <span class="k">with</span>
+    | <span onmouseout="hideTip(event, 'fs30', 81)" onmouseover="showTip(event, 'fs30', 81)" class="p">SetValue</span> <span onmouseout="hideTip(event, 'fs42', 82)" onmouseover="showTip(event, 'fs42', 82)" class="i">v</span> <span class="k">-&gt;</span> <span class="k">return</span> <span onmouseout="hideTip(event, 'fs42', 83)" onmouseover="showTip(event, 'fs42', 83)" class="i">v</span>
+    | <span onmouseout="hideTip(event, 'fs32', 84)" onmouseover="showTip(event, 'fs32', 84)" class="p">GetValue</span> <span onmouseout="hideTip(event, 'fs43', 85)" onmouseover="showTip(event, 'fs43', 85)" class="i">reply</span> <span class="k">-&gt;</span>
+      <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs33', 86)" onmouseover="showTip(event, 'fs33', 86)" class="t">IVar</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs44', 87)" onmouseover="showTip(event, 'fs44', 87)" class="f">fill</span> <span onmouseout="hideTip(event, 'fs43', 88)" onmouseover="showTip(event, 'fs43', 88)" class="i">reply</span> <span onmouseout="hideTip(event, 'fs39', 89)" onmouseover="showTip(event, 'fs39', 89)" class="i">x</span>
+      <span class="k">return</span> <span onmouseout="hideTip(event, 'fs39', 90)" onmouseover="showTip(event, 'fs39', 90)" class="i">x</span>
+  }
+  <span class="k">return</span> <span onmouseout="hideTip(event, 'fs37', 91)" onmouseover="showTip(event, 'fs37', 91)" class="i">commCh</span>
+}
+</code></pre></td>
+</tr>
+</table>
+</div>
+</section>
+<section >
+<h3>Actor look-a-like</h3>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="c">// MailboxProcessor.Post</span>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs45', 92)" onmouseover="showTip(event, 'fs45', 92)" class="f">send</span> <span onmouseout="hideTip(event, 'fs46', 93)" onmouseover="showTip(event, 'fs46', 93)" class="i">mbx</span> <span onmouseout="hideTip(event, 'fs47', 94)" onmouseover="showTip(event, 'fs47', 94)" class="i">msg</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 95)" onmouseover="showTip(event, 'fs22', 95)" class="i">job</span> {
+  <span class="k">return!</span> <span onmouseout="hideTip(event, 'fs36', 96)" onmouseover="showTip(event, 'fs36', 96)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs48', 97)" onmouseover="showTip(event, 'fs48', 97)" class="f">send</span> <span onmouseout="hideTip(event, 'fs46', 98)" onmouseover="showTip(event, 'fs46', 98)" class="i">mbx</span> <span onmouseout="hideTip(event, 'fs47', 99)" onmouseover="showTip(event, 'fs47', 99)" class="i">msg</span>
+}
+<span class="c">// MailboxProcessor.PostAndAsyncReply</span>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs49', 100)" onmouseover="showTip(event, 'fs49', 100)" class="f">sendAndReceive</span> <span onmouseout="hideTip(event, 'fs46', 101)" onmouseover="showTip(event, 'fs46', 101)" class="i">mbx</span> <span onmouseout="hideTip(event, 'fs50', 102)" onmouseover="showTip(event, 'fs50', 102)" class="f">toMsg</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 103)" onmouseover="showTip(event, 'fs22', 103)" class="i">job</span> {
+  <span class="k">let</span> <span onmouseout="hideTip(event, 'fs51', 104)" onmouseover="showTip(event, 'fs51', 104)" class="i">reply</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs33', 105)" onmouseover="showTip(event, 'fs33', 105)" class="t">IVar</span> ()
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs36', 106)" onmouseover="showTip(event, 'fs36', 106)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs48', 107)" onmouseover="showTip(event, 'fs48', 107)" class="f">send</span> <span onmouseout="hideTip(event, 'fs46', 108)" onmouseover="showTip(event, 'fs46', 108)" class="i">mbx</span> (<span onmouseout="hideTip(event, 'fs50', 109)" onmouseover="showTip(event, 'fs50', 109)" class="f">toMsg</span> <span onmouseout="hideTip(event, 'fs51', 110)" onmouseover="showTip(event, 'fs51', 110)" class="i">reply</span>)
+  <span class="k">return!</span> <span onmouseout="hideTip(event, 'fs33', 111)" onmouseover="showTip(event, 'fs33', 111)" class="t">IVar</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs52', 112)" onmouseover="showTip(event, 'fs52', 112)" class="f">read</span> <span onmouseout="hideTip(event, 'fs51', 113)" onmouseover="showTip(event, 'fs51', 113)" class="i">reply</span>
+}
+</code></pre></td>
+</tr>
+</table>
+</section>
+<section >
+<h3>Actor look-a-like</h3>
+<p>Test it out</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+<span class="l">4: </span>
+<span class="l">5: </span>
+<span class="l">6: </span>
+<span class="l">7: </span>
+<span class="l">8: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span onmouseout="hideTip(event, 'fs5', 114)" onmouseover="showTip(event, 'fs5', 114)" class="f">run</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs22', 115)" onmouseover="showTip(event, 'fs22', 115)" class="i">job</span> {
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs53', 116)" onmouseover="showTip(event, 'fs53', 116)" class="i">cell</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs34', 117)" onmouseover="showTip(event, 'fs34', 117)" class="f">spawnCellActor</span> <span class="s">&quot;Henry&quot;</span>
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs54', 118)" onmouseover="showTip(event, 'fs54', 118)" class="i">n1</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs49', 119)" onmouseover="showTip(event, 'fs49', 119)" class="f">sendAndReceive</span> <span onmouseout="hideTip(event, 'fs53', 120)" onmouseover="showTip(event, 'fs53', 120)" class="i">cell</span> <span onmouseout="hideTip(event, 'fs32', 121)" onmouseover="showTip(event, 'fs32', 121)" class="p">GetValue</span>
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs45', 122)" onmouseover="showTip(event, 'fs45', 122)" class="f">send</span> <span onmouseout="hideTip(event, 'fs53', 123)" onmouseover="showTip(event, 'fs53', 123)" class="i">cell</span> (<span onmouseout="hideTip(event, 'fs30', 124)" onmouseover="showTip(event, 'fs30', 124)" class="p">SetValue</span> <span class="s">&quot;Todd&quot;</span>)
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs55', 125)" onmouseover="showTip(event, 'fs55', 125)" class="i">n2</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs49', 126)" onmouseover="showTip(event, 'fs49', 126)" class="f">sendAndReceive</span> <span onmouseout="hideTip(event, 'fs53', 127)" onmouseover="showTip(event, 'fs53', 127)" class="i">cell</span> <span onmouseout="hideTip(event, 'fs32', 128)" onmouseover="showTip(event, 'fs32', 128)" class="p">GetValue</span>
+  <span onmouseout="hideTip(event, 'fs15', 129)" onmouseover="showTip(event, 'fs15', 129)" class="f">printfn</span> <span class="s">&quot;Name at 1: </span><span class="pf">%s</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs54', 130)" onmouseover="showTip(event, 'fs54', 130)" class="i">n1</span>
+  <span onmouseout="hideTip(event, 'fs15', 131)" onmouseover="showTip(event, 'fs15', 131)" class="f">printfn</span> <span class="s">&quot;Name at 2: </span><span class="pf">%s</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs55', 132)" onmouseover="showTip(event, 'fs55', 132)" class="i">n2</span>
+}
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment">
+Output:
+<table class="pre"><tr><td><pre><code>Name at 1: Henry
+Name at 2: Todd</code></pre></td></tr></table>
+</div>
+</section>
+</section>
+<section >
+<section >
+<h3>Alternatives</h3>
+<ul>
+<li class="fragment fade-down">Composable communication primitive: <code>Alt<'x></code></li>
+<li class="fragment fade-down"><code>Alt</code> is where the magic happens</li>
+<li class="fragment fade-down">Quantum superposition of waits</li>
+<div class="fragment fade-down">
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span onmouseout="hideTip(event, 'fs60', 139)" onmouseover="showTip(event, 'fs60', 139)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs61', 140)" onmouseover="showTip(event, 'fs61', 140)" class="f">choose</span>
+  [ <span onmouseout="hideTip(event, 'fs59', 141)" onmouseover="showTip(event, 'fs59', 141)" class="i">networkComm</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 142)" onmouseover="showTip(event, 'fs60', 142)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 143)" onmouseover="showTip(event, 'fs62', 143)" class="f">afterFun</span> <span onmouseout="hideTip(event, 'fs57', 144)" onmouseover="showTip(event, 'fs57', 144)" class="p">NetworkMessage</span>
+    <span onmouseout="hideTip(event, 'fs26', 145)" onmouseover="showTip(event, 'fs26', 145)" class="f">timeOutMillis</span> <span class="n">250</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 146)" onmouseover="showTip(event, 'fs60', 146)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 147)" onmouseover="showTip(event, 'fs62', 147)" class="f">afterFun</span> (<span onmouseout="hideTip(event, 'fs3', 148)" onmouseover="showTip(event, 'fs3', 148)" class="f">always</span> <span onmouseout="hideTip(event, 'fs58', 149)" onmouseover="showTip(event, 'fs58', 149)" class="p">Timeout</span>) ]
+</code></pre></td>
+</tr>
+</table>
+</div>
+</ul>
+<div class="fragment fade-down">
+<img src="images/The_Dalek_Interpretation.jpg" alt="Superposition of waits" />
+</div>
+<aside class="notes">
+15:00<br/>
+Synchronous rendezvous demands a way to select between communication alternatives<br/>
+Alternatives provide a way to wait for different possible events<br/>
+Produce more `Alt`s when composed<br/>
+Alternatives give ability to select program flow based on concurrent state<br/>
+Will be trying to avoid some of the infixes in this presentation, but they can increase expresiveness<br/>
+</aside>
+</section>
+<section >
+<h3>Alternatives</h3>
+<p>Selection in three stages
+<ul>
+<li class="fragment fade-down">Instantiated<div class="fragment fade-down"><code>Alt.prepareJob</code> / <code>guard</code></div></li>
+<li class="fragment fade-down">Available</li>
+<li class="fragment fade-down">Committed <div class="fragment fade-right" style="display:inline-block"><em>or not</em></div><div class="fragment fade-down"><code>Alt.afterJob</code> / <code>wrap</code></div></li>
+</ul></p>
+<aside class="notes">
+16:00<br/>
+Conceptually, an alternative operation is *instantiated* by a consumer and then may<br/>
+become available. When an alternative becomes available, a consumer can *commit* to<br/>
+the result of that communication.<br/>
+An alternative also knows when it has not been selected, important for negative acknowledgements<br/>
+</aside>
+</section>
+<section >
+<h3>Alternatives in Hopac</h3>
+<ul>
+<li class="fragment fade-down">Emphasizes performance over fairness</li>
+<li class="fragment fade-down">Lazy alternative instantiation</li>
+</ul>
+<div class="fragment fade-down">
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs63', 150)" onmouseover="showTip(event, 'fs63', 150)" class="f">alwaysWithPrepare</span> <span onmouseout="hideTip(event, 'fs14', 151)" onmouseover="showTip(event, 'fs14', 151)" class="i">x</span> <span class="o">=</span>
+  <span onmouseout="hideTip(event, 'fs60', 152)" onmouseover="showTip(event, 'fs60', 152)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs64', 153)" onmouseover="showTip(event, 'fs64', 153)" class="f">prepareFun</span> <span class="o">&lt;|</span> <span class="k">fun</span> () <span class="k">-&gt;</span>
+    <span onmouseout="hideTip(event, 'fs15', 154)" onmouseover="showTip(event, 'fs15', 154)" class="f">printfn</span> <span class="s">&quot;Instantiated </span><span class="pf">%i</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs14', 155)" onmouseover="showTip(event, 'fs14', 155)" class="i">x</span>
+    <span onmouseout="hideTip(event, 'fs60', 156)" onmouseover="showTip(event, 'fs60', 156)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs65', 157)" onmouseover="showTip(event, 'fs65', 157)" class="f">always</span> <span onmouseout="hideTip(event, 'fs14', 158)" onmouseover="showTip(event, 'fs14', 158)" class="i">x</span>
+
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs66', 159)" onmouseover="showTip(event, 'fs66', 159)" class="i">resultPerf</span> <span class="o">=</span>
+  <span onmouseout="hideTip(event, 'fs60', 160)" onmouseover="showTip(event, 'fs60', 160)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs61', 161)" onmouseover="showTip(event, 'fs61', 161)" class="f">choose</span>
+    [ <span onmouseout="hideTip(event, 'fs63', 162)" onmouseover="showTip(event, 'fs63', 162)" class="f">alwaysWithPrepare</span> <span class="n">0</span>
+      <span onmouseout="hideTip(event, 'fs63', 163)" onmouseover="showTip(event, 'fs63', 163)" class="f">alwaysWithPrepare</span> <span class="n">1</span> ]
+
+<span onmouseout="hideTip(event, 'fs5', 164)" onmouseover="showTip(event, 'fs5', 164)" class="f">run</span> (<span onmouseout="hideTip(event, 'fs66', 165)" onmouseover="showTip(event, 'fs66', 165)" class="i">resultPerf</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs6', 166)" onmouseover="showTip(event, 'fs6', 166)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs67', 167)" onmouseover="showTip(event, 'fs67', 167)" class="f">map</span> (<span onmouseout="hideTip(event, 'fs15', 168)" onmouseover="showTip(event, 'fs15', 168)" class="f">printfn</span> <span class="s">&quot;Selected case #</span><span class="pf">%i</span><span class="s">&quot;</span>))
+</code></pre></td>
+</tr>
+</table>
+</div>
+<div class="fragment fade-down">
+Output:
+<table class="pre"><tr><td><pre><code>Instantiated 0
+Selected case #0</code></pre></td></tr></table>
+<p>The second case never gets instantiated.
+</div></p>
+<aside class="notes">
+Concurrent ML eagerly instantiates all alternatives and uses a fair choice<br/>
+Hopac emphasizes performance over fairness, and uses lazy alternative instantiation<br/>
+So if we run this 3 times<br/>
+</aside>
+</section>
+</section>
+<section >
+<section >
+<h2>Servers</h2>
+<div class="fragment fade-up" style="font-size:150%;margin-top:2em">
+<em>Like actors, but more powerful!</em>
+</div>
+</section>
+<section >
+<h3>Servers</h3>
+<div style="font-size:125%">Reference Cell</div>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">type</span> <span onmouseout="hideTip(event, 'fs68', 169)" onmouseover="showTip(event, 'fs68', 169)" class="t">Cell</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span><span class="o">&gt;</span> <span class="o">=</span>
+  { <span onmouseout="hideTip(event, 'fs69', 170)" onmouseover="showTip(event, 'fs69', 170)" class="i">getCh</span><span class="o">:</span> <span onmouseout="hideTip(event, 'fs36', 171)" onmouseover="showTip(event, 'fs36', 171)" class="t">Ch</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span><span class="o">&gt;</span>
+    <span onmouseout="hideTip(event, 'fs70', 172)" onmouseover="showTip(event, 'fs70', 172)" class="i">putCh</span><span class="o">:</span> <span onmouseout="hideTip(event, 'fs36', 173)" onmouseover="showTip(event, 'fs36', 173)" class="t">Ch</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span><span class="o">&gt;</span> }
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment fade-down" style="font-size:80%;margin-bottom:1em">
+<code>Ch<'a></code>: two-way communication: <code>give</code>/<code>take</code>
+</div>
+</section>
+<section >
+<h3>Servers</h3>
+<p>The server implementation</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+<span class="l">4: </span>
+<span class="l">5: </span>
+<span class="l">6: </span>
+<span class="l">7: </span>
+<span class="l">8: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs71', 174)" onmouseover="showTip(event, 'fs71', 174)" class="f">cell</span> <span onmouseout="hideTip(event, 'fs4', 175)" onmouseover="showTip(event, 'fs4', 175)" class="i">x</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 176)" onmouseover="showTip(event, 'fs22', 176)" class="i">job</span> {
+  <span class="k">let</span> <span onmouseout="hideTip(event, 'fs72', 177)" onmouseover="showTip(event, 'fs72', 177)" class="i">c</span> <span class="o">=</span> {<span class="i">getCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 178)" onmouseover="showTip(event, 'fs36', 178)" class="t">Ch</span> (); <span class="i">putCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 179)" onmouseover="showTip(event, 'fs36', 179)" class="t">Ch</span> ()}
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs6', 180)" onmouseover="showTip(event, 'fs6', 180)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs38', 181)" onmouseover="showTip(event, 'fs38', 181)" class="f">iterateServer</span> <span onmouseout="hideTip(event, 'fs4', 182)" onmouseover="showTip(event, 'fs4', 182)" class="i">x</span> <span class="o">&lt;|</span> <span class="k">fun</span> <span onmouseout="hideTip(event, 'fs4', 183)" onmouseover="showTip(event, 'fs4', 183)" class="i">x</span> <span class="k">-&gt;</span>
+        <span onmouseout="hideTip(event, 'fs60', 184)" onmouseover="showTip(event, 'fs60', 184)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs61', 185)" onmouseover="showTip(event, 'fs61', 185)" class="f">choose</span>
+          [ <span onmouseout="hideTip(event, 'fs36', 186)" onmouseover="showTip(event, 'fs36', 186)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 187)" onmouseover="showTip(event, 'fs41', 187)" class="f">take</span> <span onmouseout="hideTip(event, 'fs72', 188)" onmouseover="showTip(event, 'fs72', 188)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs70', 189)" onmouseover="showTip(event, 'fs70', 189)" class="i">putCh</span>
+            <span onmouseout="hideTip(event, 'fs36', 190)" onmouseover="showTip(event, 'fs36', 190)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs73', 191)" onmouseover="showTip(event, 'fs73', 191)" class="f">give</span> <span onmouseout="hideTip(event, 'fs72', 192)" onmouseover="showTip(event, 'fs72', 192)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs69', 193)" onmouseover="showTip(event, 'fs69', 193)" class="i">getCh</span> <span onmouseout="hideTip(event, 'fs4', 194)" onmouseover="showTip(event, 'fs4', 194)" class="i">x</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 195)" onmouseover="showTip(event, 'fs60', 195)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 196)" onmouseover="showTip(event, 'fs62', 196)" class="f">afterFun</span> (<span onmouseout="hideTip(event, 'fs3', 197)" onmouseover="showTip(event, 'fs3', 197)" class="f">always</span> <span onmouseout="hideTip(event, 'fs4', 198)" onmouseover="showTip(event, 'fs4', 198)" class="i">x</span>) ]
+  <span class="k">return</span> <span onmouseout="hideTip(event, 'fs72', 199)" onmouseover="showTip(event, 'fs72', 199)" class="i">c</span>
+}
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment fade-down">
+Abstract the protocol
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs74', 200)" onmouseover="showTip(event, 'fs74', 200)" class="f">put</span> <span onmouseout="hideTip(event, 'fs72', 201)" onmouseover="showTip(event, 'fs72', 201)" class="i">c</span> <span onmouseout="hideTip(event, 'fs75', 202)" onmouseover="showTip(event, 'fs75', 202)" class="i">v</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 203)" onmouseover="showTip(event, 'fs36', 203)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs73', 204)" onmouseover="showTip(event, 'fs73', 204)" class="f">give</span> <span onmouseout="hideTip(event, 'fs72', 205)" onmouseover="showTip(event, 'fs72', 205)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs70', 206)" onmouseover="showTip(event, 'fs70', 206)" class="i">putCh</span> <span onmouseout="hideTip(event, 'fs75', 207)" onmouseover="showTip(event, 'fs75', 207)" class="i">v</span>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs76', 208)" onmouseover="showTip(event, 'fs76', 208)" class="f">get</span> <span onmouseout="hideTip(event, 'fs72', 209)" onmouseover="showTip(event, 'fs72', 209)" class="i">c</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 210)" onmouseover="showTip(event, 'fs36', 210)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 211)" onmouseover="showTip(event, 'fs41', 211)" class="f">take</span> <span onmouseout="hideTip(event, 'fs72', 212)" onmouseover="showTip(event, 'fs72', 212)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs69', 213)" onmouseover="showTip(event, 'fs69', 213)" class="i">getCh</span>
+</code></pre></td>
+</tr>
+</table>
+</div>
+</section>
+<section >
+<h3>Servers</h3>
+<p>Test it out</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+<span class="l">4: </span>
+<span class="l">5: </span>
+<span class="l">6: </span>
+<span class="l">7: </span>
+<span class="l">8: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span onmouseout="hideTip(event, 'fs5', 214)" onmouseover="showTip(event, 'fs5', 214)" class="f">run</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs22', 215)" onmouseover="showTip(event, 'fs22', 215)" class="i">job</span> {
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs77', 216)" onmouseover="showTip(event, 'fs77', 216)" class="i">myCell</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs71', 217)" onmouseover="showTip(event, 'fs71', 217)" class="f">cell</span> <span class="s">&quot;Henry&quot;</span>
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs54', 218)" onmouseover="showTip(event, 'fs54', 218)" class="i">n1</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs76', 219)" onmouseover="showTip(event, 'fs76', 219)" class="f">get</span> <span onmouseout="hideTip(event, 'fs77', 220)" onmouseover="showTip(event, 'fs77', 220)" class="i">myCell</span>
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs74', 221)" onmouseover="showTip(event, 'fs74', 221)" class="f">put</span> <span onmouseout="hideTip(event, 'fs77', 222)" onmouseover="showTip(event, 'fs77', 222)" class="i">myCell</span> <span class="s">&quot;Todd&quot;</span>
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs55', 223)" onmouseover="showTip(event, 'fs55', 223)" class="i">n2</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs76', 224)" onmouseover="showTip(event, 'fs76', 224)" class="f">get</span> <span onmouseout="hideTip(event, 'fs77', 225)" onmouseover="showTip(event, 'fs77', 225)" class="i">myCell</span>
+  <span onmouseout="hideTip(event, 'fs15', 226)" onmouseover="showTip(event, 'fs15', 226)" class="f">printfn</span> <span class="s">&quot;Name at 1: </span><span class="pf">%s</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs54', 227)" onmouseover="showTip(event, 'fs54', 227)" class="i">n1</span>
+  <span onmouseout="hideTip(event, 'fs15', 228)" onmouseover="showTip(event, 'fs15', 228)" class="f">printfn</span> <span class="s">&quot;Name at 2: </span><span class="pf">%s</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs55', 229)" onmouseover="showTip(event, 'fs55', 229)" class="i">n2</span>
+}
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment fade-down">
+Output:
+<table class="pre"><tr><td><pre><code>Name at 1: Henry
+Name at 2: Todd</code></pre></td></tr></table>
+</div>
+</section>
+</section>
+<section >
+<section >
+<h2>Handling Replies</h2>
+<div class="fragment" style="font-size:150%;margin-top:2em">
+<em>Talking back to your clients</em>
+</div>
+</section>
+<section >
+<h3>Handling Replies</h3>
+<p>Create a cell that can handle replies</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">type</span> <span onmouseout="hideTip(event, 'fs78', 230)" onmouseover="showTip(event, 'fs78', 230)" class="t">CellWithReply</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span><span class="o">&gt;</span> <span class="o">=</span>
+  { <span onmouseout="hideTip(event, 'fs79', 231)" onmouseover="showTip(event, 'fs79', 231)" class="i">getCh</span><span class="o">:</span> <span onmouseout="hideTip(event, 'fs36', 232)" onmouseover="showTip(event, 'fs36', 232)" class="t">Ch</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span><span class="o">&gt;</span>
+    <span onmouseout="hideTip(event, 'fs80', 233)" onmouseover="showTip(event, 'fs80', 233)" class="i">putCh</span><span class="o">:</span> <span onmouseout="hideTip(event, 'fs36', 234)" onmouseover="showTip(event, 'fs36', 234)" class="t">Ch</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs33', 235)" onmouseover="showTip(event, 'fs33', 235)" class="t">IVar</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span><span class="o">&gt;</span><span class="o">&gt;</span> }
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment fade-down" style="font-size:80%;margin-bottom:1em">
+<code>IVar<'a></code>: write-once channel: <code>fill</code>/<code>read</code>
+</div>
+</section>
+<section >
+<h3>Handling Replies</h3>
+<p>Update the server</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs81', 236)" onmouseover="showTip(event, 'fs81', 236)" class="f">handlePut</span> <span onmouseout="hideTip(event, 'fs82', 237)" onmouseover="showTip(event, 'fs82', 237)" class="i">oldVal</span> (<span onmouseout="hideTip(event, 'fs83', 238)" onmouseover="showTip(event, 'fs83', 238)" class="i">newVal</span>, <span onmouseout="hideTip(event, 'fs84', 239)" onmouseover="showTip(event, 'fs84', 239)" class="i">reply</span>) <span class="o">=</span>
+    <span onmouseout="hideTip(event, 'fs33', 240)" onmouseover="showTip(event, 'fs33', 240)" class="t">IVar</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs44', 241)" onmouseover="showTip(event, 'fs44', 241)" class="f">fill</span> <span onmouseout="hideTip(event, 'fs84', 242)" onmouseover="showTip(event, 'fs84', 242)" class="i">reply</span> <span onmouseout="hideTip(event, 'fs82', 243)" onmouseover="showTip(event, 'fs82', 243)" class="i">oldVal</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs6', 244)" onmouseover="showTip(event, 'fs6', 244)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs67', 245)" onmouseover="showTip(event, 'fs67', 245)" class="f">map</span> (<span onmouseout="hideTip(event, 'fs3', 246)" onmouseover="showTip(event, 'fs3', 246)" class="f">always</span> <span onmouseout="hideTip(event, 'fs83', 247)" onmouseover="showTip(event, 'fs83', 247)" class="i">newVal</span>)
+
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs85', 248)" onmouseover="showTip(event, 'fs85', 248)" class="f">cell</span> <span onmouseout="hideTip(event, 'fs4', 249)" onmouseover="showTip(event, 'fs4', 249)" class="i">x</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 250)" onmouseover="showTip(event, 'fs22', 250)" class="i">job</span> {
+  <span class="k">let</span> <span onmouseout="hideTip(event, 'fs86', 251)" onmouseover="showTip(event, 'fs86', 251)" class="i">c</span> <span class="o">=</span> {<span class="i">getCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 252)" onmouseover="showTip(event, 'fs36', 252)" class="t">Ch</span> (); <span class="i">putCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 253)" onmouseover="showTip(event, 'fs36', 253)" class="t">Ch</span> ()}
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs6', 254)" onmouseover="showTip(event, 'fs6', 254)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs38', 255)" onmouseover="showTip(event, 'fs38', 255)" class="f">iterateServer</span> <span onmouseout="hideTip(event, 'fs4', 256)" onmouseover="showTip(event, 'fs4', 256)" class="i">x</span> <span class="o">&lt;|</span> <span class="k">fun</span> <span onmouseout="hideTip(event, 'fs4', 257)" onmouseover="showTip(event, 'fs4', 257)" class="i">x</span> <span class="k">-&gt;</span>
+        <span onmouseout="hideTip(event, 'fs60', 258)" onmouseover="showTip(event, 'fs60', 258)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs61', 259)" onmouseover="showTip(event, 'fs61', 259)" class="f">choose</span>
+          [ <span onmouseout="hideTip(event, 'fs36', 260)" onmouseover="showTip(event, 'fs36', 260)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 261)" onmouseover="showTip(event, 'fs41', 261)" class="f">take</span> <span onmouseout="hideTip(event, 'fs86', 262)" onmouseover="showTip(event, 'fs86', 262)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs80', 263)" onmouseover="showTip(event, 'fs80', 263)" class="i">putCh</span>   <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 264)" onmouseover="showTip(event, 'fs60', 264)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs87', 265)" onmouseover="showTip(event, 'fs87', 265)" class="f">afterJob</span> (<span onmouseout="hideTip(event, 'fs81', 266)" onmouseover="showTip(event, 'fs81', 266)" class="f">handlePut</span> <span onmouseout="hideTip(event, 'fs4', 267)" onmouseover="showTip(event, 'fs4', 267)" class="i">x</span>)
+            <span onmouseout="hideTip(event, 'fs36', 268)" onmouseover="showTip(event, 'fs36', 268)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs73', 269)" onmouseover="showTip(event, 'fs73', 269)" class="f">give</span> <span onmouseout="hideTip(event, 'fs86', 270)" onmouseover="showTip(event, 'fs86', 270)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs79', 271)" onmouseover="showTip(event, 'fs79', 271)" class="i">getCh</span> <span onmouseout="hideTip(event, 'fs4', 272)" onmouseover="showTip(event, 'fs4', 272)" class="i">x</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 273)" onmouseover="showTip(event, 'fs60', 273)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 274)" onmouseover="showTip(event, 'fs62', 274)" class="f">afterFun</span> (<span onmouseout="hideTip(event, 'fs3', 275)" onmouseover="showTip(event, 'fs3', 275)" class="f">always</span> <span onmouseout="hideTip(event, 'fs4', 276)" onmouseover="showTip(event, 'fs4', 276)" class="i">x</span>) ]
+  <span class="k">return</span> <span onmouseout="hideTip(event, 'fs86', 277)" onmouseover="showTip(event, 'fs86', 277)" class="i">c</span>
+}
+</code></pre></td>
+</tr>
+</table>
+<aside class="notes">
+Added an IVar to the put channel, allows us to send a reply back to the client<br/>
+Create this handlePut function that will fill the reply with the old value<br/>
+and then return the new state.<br/>
+IVar is optimized for this use case.<br/>
+</aside>
+</section>
+<section >
+<h3>Handling Replies</h3>
+<p>Update the protocol abstraction</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+<span class="l">4: </span>
+<span class="l">5: </span>
+<span class="l">6: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs88', 278)" onmouseover="showTip(event, 'fs88', 278)" class="f">get</span> <span onmouseout="hideTip(event, 'fs86', 279)" onmouseover="showTip(event, 'fs86', 279)" class="i">c</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 280)" onmouseover="showTip(event, 'fs36', 280)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 281)" onmouseover="showTip(event, 'fs41', 281)" class="f">take</span> <span onmouseout="hideTip(event, 'fs86', 282)" onmouseover="showTip(event, 'fs86', 282)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs79', 283)" onmouseover="showTip(event, 'fs79', 283)" class="i">getCh</span>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs89', 284)" onmouseover="showTip(event, 'fs89', 284)" class="f">put</span> <span onmouseout="hideTip(event, 'fs86', 285)" onmouseover="showTip(event, 'fs86', 285)" class="i">c</span> <span onmouseout="hideTip(event, 'fs75', 286)" onmouseover="showTip(event, 'fs75', 286)" class="i">v</span> <span class="o">=</span>
+  <span onmouseout="hideTip(event, 'fs60', 287)" onmouseover="showTip(event, 'fs60', 287)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs64', 288)" onmouseover="showTip(event, 'fs64', 288)" class="f">prepareFun</span> <span class="o">&lt;|</span> <span class="k">fun</span> () <span class="k">-&gt;</span>
+    <span class="k">let</span> <span onmouseout="hideTip(event, 'fs84', 289)" onmouseover="showTip(event, 'fs84', 289)" class="i">reply</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs33', 290)" onmouseover="showTip(event, 'fs33', 290)" class="t">IVar</span> ()
+    <span onmouseout="hideTip(event, 'fs36', 291)" onmouseover="showTip(event, 'fs36', 291)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs73', 292)" onmouseover="showTip(event, 'fs73', 292)" class="f">give</span> <span onmouseout="hideTip(event, 'fs86', 293)" onmouseover="showTip(event, 'fs86', 293)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs80', 294)" onmouseover="showTip(event, 'fs80', 294)" class="i">putCh</span> (<span onmouseout="hideTip(event, 'fs75', 295)" onmouseover="showTip(event, 'fs75', 295)" class="i">v</span>,<span onmouseout="hideTip(event, 'fs84', 296)" onmouseover="showTip(event, 'fs84', 296)" class="i">reply</span>)
+    <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 297)" onmouseover="showTip(event, 'fs60', 297)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs87', 298)" onmouseover="showTip(event, 'fs87', 298)" class="f">afterJob</span> (<span class="k">fun</span> () <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs33', 299)" onmouseover="showTip(event, 'fs33', 299)" class="t">IVar</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs52', 300)" onmouseover="showTip(event, 'fs52', 300)" class="f">read</span> <span onmouseout="hideTip(event, 'fs84', 301)" onmouseover="showTip(event, 'fs84', 301)" class="i">reply</span>)
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment" style="font-size:80%;margin-bottom:1em">
+Commit on <code>give</code>
+</div>
+<aside class="notes">
+Use prepareFun because now we need to create the IVar that we give to the<br/>
+the server. This is similar to the F# AsyncReplyChannel<'a><br/>
+</aside>
+<aside class="notes">
+Synchronization point is when we give the new value to the reference cell<br/>
+But we want to synchronize on the server's reply instead<br/>
+In other words, we want the server to synchronize committing to the change<br/>
+when the client commits to receiving the reply.<br/>
+</aside>
+<div class="fragment fade-down">
+Rework the synchronization point
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+<span class="l">4: </span>
+<span class="l">5: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs90', 302)" onmouseover="showTip(event, 'fs90', 302)" class="f">putSyncOnReply</span> <span onmouseout="hideTip(event, 'fs86', 303)" onmouseover="showTip(event, 'fs86', 303)" class="i">c</span> <span onmouseout="hideTip(event, 'fs75', 304)" onmouseover="showTip(event, 'fs75', 304)" class="i">v</span> <span class="o">=</span>
+  <span onmouseout="hideTip(event, 'fs60', 305)" onmouseover="showTip(event, 'fs60', 305)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs91', 306)" onmouseover="showTip(event, 'fs91', 306)" class="f">prepareJob</span> <span class="o">&lt;|</span> <span class="k">fun</span> () <span class="k">-&gt;</span>
+    <span class="k">let</span> <span onmouseout="hideTip(event, 'fs84', 307)" onmouseover="showTip(event, 'fs84', 307)" class="i">reply</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs33', 308)" onmouseover="showTip(event, 'fs33', 308)" class="t">IVar</span> ()
+    <span onmouseout="hideTip(event, 'fs36', 309)" onmouseover="showTip(event, 'fs36', 309)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs48', 310)" onmouseover="showTip(event, 'fs48', 310)" class="f">send</span> <span onmouseout="hideTip(event, 'fs86', 311)" onmouseover="showTip(event, 'fs86', 311)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs80', 312)" onmouseover="showTip(event, 'fs80', 312)" class="i">putCh</span> (<span onmouseout="hideTip(event, 'fs75', 313)" onmouseover="showTip(event, 'fs75', 313)" class="i">v</span>,<span onmouseout="hideTip(event, 'fs84', 314)" onmouseover="showTip(event, 'fs84', 314)" class="i">reply</span>)
+    <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs6', 315)" onmouseover="showTip(event, 'fs6', 315)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs67', 316)" onmouseover="showTip(event, 'fs67', 316)" class="f">map</span> (<span class="k">fun</span> () <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs33', 317)" onmouseover="showTip(event, 'fs33', 317)" class="t">IVar</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs52', 318)" onmouseover="showTip(event, 'fs52', 318)" class="f">read</span> <span onmouseout="hideTip(event, 'fs84', 319)" onmouseover="showTip(event, 'fs84', 319)" class="i">reply</span>)
+</code></pre></td>
+</tr>
+</table>
+</div>
+<div class="fragment" style="font-size:80%;margin-bottom:1em">
+Commit on <code>read</code>
+</div>
+<aside class="notes">
+So we switch to prepareJob, and asynchronously send the message to the server,<br/>
+then return an alternative that synchronizes on the reply.<br/>
+So that's good. We can now have a choice<br/>
+</aside>
+</section>
+<section >
+<h3>Handling Replies</h3>
+<p>Test it out</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+<span class="l">12: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span onmouseout="hideTip(event, 'fs5', 320)" onmouseover="showTip(event, 'fs5', 320)" class="f">run</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs22', 321)" onmouseover="showTip(event, 'fs22', 321)" class="i">job</span> {
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs92', 322)" onmouseover="showTip(event, 'fs92', 322)" class="i">myCell</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs85', 323)" onmouseover="showTip(event, 'fs85', 323)" class="f">cell</span> <span class="s">&quot;Henry&quot;</span>
+  <span class="k">do!</span>
+    <span onmouseout="hideTip(event, 'fs60', 324)" onmouseover="showTip(event, 'fs60', 324)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs61', 325)" onmouseover="showTip(event, 'fs61', 325)" class="f">choose</span>
+      [ <span onmouseout="hideTip(event, 'fs90', 326)" onmouseover="showTip(event, 'fs90', 326)" class="f">putSyncOnReply</span> <span onmouseout="hideTip(event, 'fs92', 327)" onmouseover="showTip(event, 'fs92', 327)" class="i">myCell</span> <span class="s">&quot;Todd&quot;</span>
+          <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 328)" onmouseover="showTip(event, 'fs60', 328)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 329)" onmouseover="showTip(event, 'fs62', 329)" class="f">afterFun</span> (<span onmouseout="hideTip(event, 'fs15', 330)" onmouseover="showTip(event, 'fs15', 330)" class="f">printfn</span> <span class="s">&quot;Old value: </span><span class="pf">%s</span><span class="s">&quot;</span>)
+        <span onmouseout="hideTip(event, 'fs26', 331)" onmouseover="showTip(event, 'fs26', 331)" class="f">timeOutMillis</span> <span class="n">0</span>
+          <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 332)" onmouseover="showTip(event, 'fs60', 332)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 333)" onmouseover="showTip(event, 'fs62', 333)" class="f">afterFun</span> (<span class="k">fun</span> () <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs15', 334)" onmouseover="showTip(event, 'fs15', 334)" class="f">printfn</span> <span class="s">&quot;Timed out…&quot;</span>) ]
+
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs93', 335)" onmouseover="showTip(event, 'fs93', 335)" class="i">value</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs88', 336)" onmouseover="showTip(event, 'fs88', 336)" class="f">get</span> <span onmouseout="hideTip(event, 'fs92', 337)" onmouseover="showTip(event, 'fs92', 337)" class="i">myCell</span>
+  <span onmouseout="hideTip(event, 'fs15', 338)" onmouseover="showTip(event, 'fs15', 338)" class="f">printfn</span> <span class="s">&quot;Current value: </span><span class="pf">%s</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs93', 339)" onmouseover="showTip(event, 'fs93', 339)" class="i">value</span>
+}
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment fade-down">
+Output
+<table class="pre"><tr><td><pre><code>Timed out…
+Current value: Todd</code></pre></td></tr></table>
+</div>
+<div class="fragment fade-up">
+This is <em>not</em> the semantic we want
+</div>
+<aside class="notes">
+What happens if the server has been busy and we hit the timeout? We've already sent the<br/>
+message. The server has still committed to the change when it receives the message. This<br/>
+is similar to the way that a message is effectively committed to once sent in the actor model.<br/>
+But we can do better. We can inform the server in the event we don't commit to action.<br/>
+</aside>
+</section>
+</section>
+<section >
+<section >
+<h2>Negative Acknowledgements</h2>
+<div class="fragment" style="font-size:150%;margin-top:2em">
+<em>Keeping your options open</em>
+</div>
+</section>
+<section >
+<h3>Negative Acknowledgements</h3>
+<p>Create a new cell type</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">type</span> <span onmouseout="hideTip(event, 'fs94', 340)" onmouseover="showTip(event, 'fs94', 340)" class="t">CellWithNack</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span><span class="o">&gt;</span> <span class="o">=</span>
+  { <span onmouseout="hideTip(event, 'fs95', 341)" onmouseover="showTip(event, 'fs95', 341)" class="i">getCh</span><span class="o">:</span> <span onmouseout="hideTip(event, 'fs36', 342)" onmouseover="showTip(event, 'fs36', 342)" class="t">Ch</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span><span class="o">&gt;</span>
+    <span onmouseout="hideTip(event, 'fs96', 343)" onmouseover="showTip(event, 'fs96', 343)" class="i">putCh</span><span class="o">:</span> <span onmouseout="hideTip(event, 'fs36', 344)" onmouseover="showTip(event, 'fs36', 344)" class="t">Ch</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs97', 345)" onmouseover="showTip(event, 'fs97', 345)" class="t">Promise</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs98', 346)" onmouseover="showTip(event, 'fs98', 346)" class="t">unit</span><span class="o">&gt;</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs36', 347)" onmouseover="showTip(event, 'fs36', 347)" class="t">Ch</span><span class="o">&lt;</span><span class="o">&#39;</span><span class="i">a</span><span class="o">&gt;</span><span class="o">&gt;</span> }
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment fade-down" style="font-size:80%;margin-bottom:1em">
+<code>Promise<'a></code>: offer to provide a value at a future time: <code>start</code>/<code>read</code>
+</div>
+</section>
+<section >
+<h3>Negative Acknowledgements</h3>
+<p>Update the server so that it commits when<br/>the client accepts the reply or sends a nack</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+<span class="l">12: </span>
+<span class="l">13: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs99', 348)" onmouseover="showTip(event, 'fs99', 348)" class="f">handlePut</span> <span onmouseout="hideTip(event, 'fs82', 349)" onmouseover="showTip(event, 'fs82', 349)" class="i">oldVal</span> (<span onmouseout="hideTip(event, 'fs100', 350)" onmouseover="showTip(event, 'fs100', 350)" class="i">newVal</span>, <span onmouseout="hideTip(event, 'fs101', 351)" onmouseover="showTip(event, 'fs101', 351)" class="i">nack</span>, <span onmouseout="hideTip(event, 'fs102', 352)" onmouseover="showTip(event, 'fs102', 352)" class="i">replyCh</span>) <span class="o">=</span>
+  <span onmouseout="hideTip(event, 'fs60', 353)" onmouseover="showTip(event, 'fs60', 353)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs61', 354)" onmouseover="showTip(event, 'fs61', 354)" class="f">choose</span>
+    [ <span onmouseout="hideTip(event, 'fs36', 355)" onmouseover="showTip(event, 'fs36', 355)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs73', 356)" onmouseover="showTip(event, 'fs73', 356)" class="f">give</span> <span onmouseout="hideTip(event, 'fs102', 357)" onmouseover="showTip(event, 'fs102', 357)" class="i">replyCh</span> <span onmouseout="hideTip(event, 'fs82', 358)" onmouseover="showTip(event, 'fs82', 358)" class="i">oldVal</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 359)" onmouseover="showTip(event, 'fs60', 359)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 360)" onmouseover="showTip(event, 'fs62', 360)" class="f">afterFun</span> (<span onmouseout="hideTip(event, 'fs3', 361)" onmouseover="showTip(event, 'fs3', 361)" class="f">always</span> <span onmouseout="hideTip(event, 'fs100', 362)" onmouseover="showTip(event, 'fs100', 362)" class="i">newVal</span>)
+      <span onmouseout="hideTip(event, 'fs97', 363)" onmouseover="showTip(event, 'fs97', 363)" class="t">Promise</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs103', 364)" onmouseover="showTip(event, 'fs103', 364)" class="f">read</span> <span onmouseout="hideTip(event, 'fs101', 365)" onmouseover="showTip(event, 'fs101', 365)" class="i">nack</span>      <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 366)" onmouseover="showTip(event, 'fs60', 366)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 367)" onmouseover="showTip(event, 'fs62', 367)" class="f">afterFun</span> (<span onmouseout="hideTip(event, 'fs3', 368)" onmouseover="showTip(event, 'fs3', 368)" class="f">always</span> <span onmouseout="hideTip(event, 'fs82', 369)" onmouseover="showTip(event, 'fs82', 369)" class="i">oldVal</span>) ]
+
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs104', 370)" onmouseover="showTip(event, 'fs104', 370)" class="f">cell</span> <span onmouseout="hideTip(event, 'fs4', 371)" onmouseover="showTip(event, 'fs4', 371)" class="i">x</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 372)" onmouseover="showTip(event, 'fs22', 372)" class="i">job</span> {
+  <span class="k">let</span> <span onmouseout="hideTip(event, 'fs105', 373)" onmouseover="showTip(event, 'fs105', 373)" class="i">c</span> <span class="o">=</span> {<span class="i">getCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 374)" onmouseover="showTip(event, 'fs36', 374)" class="t">Ch</span> (); <span class="i">putCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 375)" onmouseover="showTip(event, 'fs36', 375)" class="t">Ch</span> ()}
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs6', 376)" onmouseover="showTip(event, 'fs6', 376)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs38', 377)" onmouseover="showTip(event, 'fs38', 377)" class="f">iterateServer</span> <span onmouseout="hideTip(event, 'fs4', 378)" onmouseover="showTip(event, 'fs4', 378)" class="i">x</span> <span class="o">&lt;|</span> <span class="k">fun</span> <span onmouseout="hideTip(event, 'fs4', 379)" onmouseover="showTip(event, 'fs4', 379)" class="i">x</span> <span class="k">-&gt;</span>
+        <span onmouseout="hideTip(event, 'fs60', 380)" onmouseover="showTip(event, 'fs60', 380)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs61', 381)" onmouseover="showTip(event, 'fs61', 381)" class="f">choose</span>
+          [ <span onmouseout="hideTip(event, 'fs36', 382)" onmouseover="showTip(event, 'fs36', 382)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 383)" onmouseover="showTip(event, 'fs41', 383)" class="f">take</span> <span onmouseout="hideTip(event, 'fs105', 384)" onmouseover="showTip(event, 'fs105', 384)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs96', 385)" onmouseover="showTip(event, 'fs96', 385)" class="i">putCh</span>   <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 386)" onmouseover="showTip(event, 'fs60', 386)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs87', 387)" onmouseover="showTip(event, 'fs87', 387)" class="f">afterJob</span> (<span onmouseout="hideTip(event, 'fs99', 388)" onmouseover="showTip(event, 'fs99', 388)" class="f">handlePut</span> <span onmouseout="hideTip(event, 'fs4', 389)" onmouseover="showTip(event, 'fs4', 389)" class="i">x</span>)
+            <span onmouseout="hideTip(event, 'fs36', 390)" onmouseover="showTip(event, 'fs36', 390)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs73', 391)" onmouseover="showTip(event, 'fs73', 391)" class="f">give</span> <span onmouseout="hideTip(event, 'fs105', 392)" onmouseover="showTip(event, 'fs105', 392)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs95', 393)" onmouseover="showTip(event, 'fs95', 393)" class="i">getCh</span> <span onmouseout="hideTip(event, 'fs4', 394)" onmouseover="showTip(event, 'fs4', 394)" class="i">x</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 395)" onmouseover="showTip(event, 'fs60', 395)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 396)" onmouseover="showTip(event, 'fs62', 396)" class="f">afterFun</span> (<span onmouseout="hideTip(event, 'fs3', 397)" onmouseover="showTip(event, 'fs3', 397)" class="f">always</span> <span onmouseout="hideTip(event, 'fs4', 398)" onmouseover="showTip(event, 'fs4', 398)" class="i">x</span>) ]
+  <span class="k">return</span> <span onmouseout="hideTip(event, 'fs105', 399)" onmouseover="showTip(event, 'fs105', 399)" class="i">c</span>
+}
+</code></pre></td>
+</tr>
+</table>
+</section>
+<section >
+<h3>Negative Acknowledgements</h3>
+<p>Update the client abstraction</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+<span class="l">4: </span>
+<span class="l">5: </span>
+<span class="l">6: </span>
+<span class="l">7: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs106', 400)" onmouseover="showTip(event, 'fs106', 400)" class="f">get</span> <span onmouseout="hideTip(event, 'fs105', 401)" onmouseover="showTip(event, 'fs105', 401)" class="i">c</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 402)" onmouseover="showTip(event, 'fs36', 402)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 403)" onmouseover="showTip(event, 'fs41', 403)" class="f">take</span> <span onmouseout="hideTip(event, 'fs105', 404)" onmouseover="showTip(event, 'fs105', 404)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs95', 405)" onmouseover="showTip(event, 'fs95', 405)" class="i">getCh</span>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs107', 406)" onmouseover="showTip(event, 'fs107', 406)" class="f">putWithNack</span> <span onmouseout="hideTip(event, 'fs105', 407)" onmouseover="showTip(event, 'fs105', 407)" class="i">c</span> <span onmouseout="hideTip(event, 'fs75', 408)" onmouseover="showTip(event, 'fs75', 408)" class="i">v</span> <span class="o">=</span>
+  <span onmouseout="hideTip(event, 'fs60', 409)" onmouseover="showTip(event, 'fs60', 409)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs108', 410)" onmouseover="showTip(event, 'fs108', 410)" class="f">withNackJob</span> <span class="o">&lt;|</span> <span class="k">fun</span> <span onmouseout="hideTip(event, 'fs109', 411)" onmouseover="showTip(event, 'fs109', 411)" class="i">nack</span> <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs22', 412)" onmouseover="showTip(event, 'fs22', 412)" class="i">job</span> {
+    <span class="k">let</span> <span onmouseout="hideTip(event, 'fs102', 413)" onmouseover="showTip(event, 'fs102', 413)" class="i">replyCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 414)" onmouseover="showTip(event, 'fs36', 414)" class="t">Ch</span> ()
+    <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs36', 415)" onmouseover="showTip(event, 'fs36', 415)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs48', 416)" onmouseover="showTip(event, 'fs48', 416)" class="f">send</span> <span onmouseout="hideTip(event, 'fs105', 417)" onmouseover="showTip(event, 'fs105', 417)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs96', 418)" onmouseover="showTip(event, 'fs96', 418)" class="i">putCh</span> (<span onmouseout="hideTip(event, 'fs75', 419)" onmouseover="showTip(event, 'fs75', 419)" class="i">v</span>,<span onmouseout="hideTip(event, 'fs109', 420)" onmouseover="showTip(event, 'fs109', 420)" class="i">nack</span>,<span onmouseout="hideTip(event, 'fs102', 421)" onmouseover="showTip(event, 'fs102', 421)" class="i">replyCh</span>)
+    <span class="k">return</span> <span onmouseout="hideTip(event, 'fs36', 422)" onmouseover="showTip(event, 'fs36', 422)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 423)" onmouseover="showTip(event, 'fs41', 423)" class="f">take</span> <span onmouseout="hideTip(event, 'fs102', 424)" onmouseover="showTip(event, 'fs102', 424)" class="i">replyCh</span>
+  }
+</code></pre></td>
+</tr>
+</table>
+</section>
+<section >
+<h3>Negative Acknowledgements</h3>
+<p>Test it out</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+<span class="l">12: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span onmouseout="hideTip(event, 'fs5', 425)" onmouseover="showTip(event, 'fs5', 425)" class="f">run</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs22', 426)" onmouseover="showTip(event, 'fs22', 426)" class="i">job</span> {
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs110', 427)" onmouseover="showTip(event, 'fs110', 427)" class="i">myCell</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs104', 428)" onmouseover="showTip(event, 'fs104', 428)" class="f">cell</span> <span class="s">&quot;Henry&quot;</span>
+  <span class="k">do!</span>
+    <span onmouseout="hideTip(event, 'fs60', 429)" onmouseover="showTip(event, 'fs60', 429)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs61', 430)" onmouseover="showTip(event, 'fs61', 430)" class="f">choose</span>
+      [ <span onmouseout="hideTip(event, 'fs107', 431)" onmouseover="showTip(event, 'fs107', 431)" class="f">putWithNack</span> <span onmouseout="hideTip(event, 'fs110', 432)" onmouseover="showTip(event, 'fs110', 432)" class="i">myCell</span> <span class="s">&quot;Todd&quot;</span>
+          <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 433)" onmouseover="showTip(event, 'fs60', 433)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 434)" onmouseover="showTip(event, 'fs62', 434)" class="f">afterFun</span> (<span onmouseout="hideTip(event, 'fs15', 435)" onmouseover="showTip(event, 'fs15', 435)" class="f">printfn</span> <span class="s">&quot;Old value: </span><span class="pf">%s</span><span class="s">&quot;</span>)
+        <span onmouseout="hideTip(event, 'fs26', 436)" onmouseover="showTip(event, 'fs26', 436)" class="f">timeOutMillis</span> <span class="n">0</span>
+          <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs60', 437)" onmouseover="showTip(event, 'fs60', 437)" class="t">Alt</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs62', 438)" onmouseover="showTip(event, 'fs62', 438)" class="f">afterFun</span> (<span class="k">fun</span> () <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs15', 439)" onmouseover="showTip(event, 'fs15', 439)" class="f">printfn</span> <span class="s">&quot;Timed out…&quot;</span>) ]
+
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs93', 440)" onmouseover="showTip(event, 'fs93', 440)" class="i">value</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs106', 441)" onmouseover="showTip(event, 'fs106', 441)" class="f">get</span> <span onmouseout="hideTip(event, 'fs110', 442)" onmouseover="showTip(event, 'fs110', 442)" class="i">myCell</span>
+  <span onmouseout="hideTip(event, 'fs15', 443)" onmouseover="showTip(event, 'fs15', 443)" class="f">printfn</span> <span class="s">&quot;Current value: </span><span class="pf">%s</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs93', 444)" onmouseover="showTip(event, 'fs93', 444)" class="i">value</span>
+}
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment fade-down">
+Output:
+<table class="pre"><tr><td><pre><code>Timed out…
+Current value: Henry</code></pre></td></tr></table>
+</div>
+<div class="fragment fade-up">
+This has the semantic we want
+</div>
+</section>
+<section >
+<h2>Negative Acknowledgements</h2>
+<div class="fragment fade-right" style="font-size:125%;margin-top:2em">
+<em>Allow the client and server to collaborate</em>
+</div>
+<div class="fragment fade-left" style="font-size:125%;margin-top:1em;margin-bottom:1em">
+<em>Enable the client to explore multiple options</em>
+</div>
+<div class="fragment fade-up" style="font-size:125%">
+<em>Very complicated to implement using actors</em>
+</div>
+</section>
+</section>
+<section >
+<section >
+<h3>Terse Example</h3>
+<div class="fragment" data-autoslide="1">
+<div class="fragment grow" style="font-size:90%;color:rgb(229,50,50)">
+<em>Warning: Infix operators inbound</em>
+</div>
+</div>
+<div class="fragment fade-down">
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs111', 445)" onmouseover="showTip(event, 'fs111', 445)" class="f">handlePut</span> <span onmouseout="hideTip(event, 'fs82', 446)" onmouseover="showTip(event, 'fs82', 446)" class="i">oldVal</span> (<span onmouseout="hideTip(event, 'fs100', 447)" onmouseover="showTip(event, 'fs100', 447)" class="i">newVal</span>, <span onmouseout="hideTip(event, 'fs112', 448)" onmouseover="showTip(event, 'fs112', 448)" class="i">nack</span>, <span onmouseout="hideTip(event, 'fs102', 449)" onmouseover="showTip(event, 'fs102', 449)" class="i">replyCh</span>) <span class="o">=</span>
+      <span onmouseout="hideTip(event, 'fs102', 450)" onmouseover="showTip(event, 'fs102', 450)" class="i">replyCh</span> <span class="o">*&lt;-</span> <span onmouseout="hideTip(event, 'fs82', 451)" onmouseover="showTip(event, 'fs82', 451)" class="i">oldVal</span> <span class="o">^-&gt;.</span> <span onmouseout="hideTip(event, 'fs100', 452)" onmouseover="showTip(event, 'fs100', 452)" class="i">newVal</span>
+  <span class="o">&lt;|&gt;</span> <span onmouseout="hideTip(event, 'fs112', 453)" onmouseover="showTip(event, 'fs112', 453)" class="i">nack</span>               <span class="o">^-&gt;.</span> <span onmouseout="hideTip(event, 'fs82', 454)" onmouseover="showTip(event, 'fs82', 454)" class="i">oldVal</span>
+
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs104', 455)" onmouseover="showTip(event, 'fs104', 455)" class="f">cell</span> <span onmouseout="hideTip(event, 'fs4', 456)" onmouseover="showTip(event, 'fs4', 456)" class="i">x</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 457)" onmouseover="showTip(event, 'fs22', 457)" class="i">job</span> {
+  <span class="k">let</span> <span onmouseout="hideTip(event, 'fs105', 458)" onmouseover="showTip(event, 'fs105', 458)" class="i">c</span> <span class="o">=</span> {<span class="i">getCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 459)" onmouseover="showTip(event, 'fs36', 459)" class="t">Ch</span> (); <span class="i">putCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 460)" onmouseover="showTip(event, 'fs36', 460)" class="t">Ch</span> ()}
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs6', 461)" onmouseover="showTip(event, 'fs6', 461)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs38', 462)" onmouseover="showTip(event, 'fs38', 462)" class="f">iterateServer</span> <span onmouseout="hideTip(event, 'fs4', 463)" onmouseover="showTip(event, 'fs4', 463)" class="i">x</span> <span class="o">&lt;|</span> <span class="k">fun</span> <span onmouseout="hideTip(event, 'fs4', 464)" onmouseover="showTip(event, 'fs4', 464)" class="i">x</span> <span class="k">-&gt;</span>
+        <span onmouseout="hideTip(event, 'fs105', 465)" onmouseover="showTip(event, 'fs105', 465)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs96', 466)" onmouseover="showTip(event, 'fs96', 466)" class="i">putCh</span>       <span class="o">^=&gt;</span> <span onmouseout="hideTip(event, 'fs111', 467)" onmouseover="showTip(event, 'fs111', 467)" class="f">handlePut</span> <span onmouseout="hideTip(event, 'fs4', 468)" onmouseover="showTip(event, 'fs4', 468)" class="i">x</span>
+    <span class="o">&lt;|&gt;</span> <span onmouseout="hideTip(event, 'fs105', 469)" onmouseover="showTip(event, 'fs105', 469)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs95', 470)" onmouseover="showTip(event, 'fs95', 470)" class="i">getCh</span> <span class="o">*&lt;-</span> <span onmouseout="hideTip(event, 'fs4', 471)" onmouseover="showTip(event, 'fs4', 471)" class="i">x</span> <span class="o">^-&gt;.</span> <span onmouseout="hideTip(event, 'fs4', 472)" onmouseover="showTip(event, 'fs4', 472)" class="i">x</span>
+  <span class="k">return</span> <span onmouseout="hideTip(event, 'fs105', 473)" onmouseover="showTip(event, 'fs105', 473)" class="i">c</span>
+}
+</code></pre></td>
+</tr>
+</table>
+</div>
+<div class="fragment fade-down">
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs106', 474)" onmouseover="showTip(event, 'fs106', 474)" class="f">get</span> <span onmouseout="hideTip(event, 'fs105', 475)" onmouseover="showTip(event, 'fs105', 475)" class="i">c</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 476)" onmouseover="showTip(event, 'fs36', 476)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 477)" onmouseover="showTip(event, 'fs41', 477)" class="f">take</span> <span onmouseout="hideTip(event, 'fs105', 478)" onmouseover="showTip(event, 'fs105', 478)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs95', 479)" onmouseover="showTip(event, 'fs95', 479)" class="i">getCh</span>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs107', 480)" onmouseover="showTip(event, 'fs107', 480)" class="f">putWithNack</span> <span onmouseout="hideTip(event, 'fs105', 481)" onmouseover="showTip(event, 'fs105', 481)" class="i">c</span> <span onmouseout="hideTip(event, 'fs75', 482)" onmouseover="showTip(event, 'fs75', 482)" class="i">v</span> <span class="o">=</span>
+    <span onmouseout="hideTip(event, 'fs105', 483)" onmouseover="showTip(event, 'fs105', 483)" class="i">c</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs96', 484)" onmouseover="showTip(event, 'fs96', 484)" class="i">putCh</span> <span class="o">*&lt;+-&gt;-</span> <span class="k">fun</span> <span onmouseout="hideTip(event, 'fs102', 485)" onmouseover="showTip(event, 'fs102', 485)" class="i">replyCh</span> <span onmouseout="hideTip(event, 'fs109', 486)" onmouseover="showTip(event, 'fs109', 486)" class="i">nack</span> <span class="k">-&gt;</span> (<span onmouseout="hideTip(event, 'fs75', 487)" onmouseover="showTip(event, 'fs75', 487)" class="i">v</span>, <span onmouseout="hideTip(event, 'fs109', 488)" onmouseover="showTip(event, 'fs109', 488)" class="i">nack</span>, <span onmouseout="hideTip(event, 'fs102', 489)" onmouseover="showTip(event, 'fs102', 489)" class="i">replyCh</span>)
+</code></pre></td>
+</tr>
+</table>
+</div>
+</section>
+<section >
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+<span class="l">4: </span>
+<span class="l">5: </span>
+<span class="l">6: </span>
+<span class="l">7: </span>
+<span class="l">8: </span>
+<span class="l">9: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span onmouseout="hideTip(event, 'fs5', 490)" onmouseover="showTip(event, 'fs5', 490)" class="f">run</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs22', 491)" onmouseover="showTip(event, 'fs22', 491)" class="i">job</span> {
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs110', 492)" onmouseover="showTip(event, 'fs110', 492)" class="i">myCell</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs104', 493)" onmouseover="showTip(event, 'fs104', 493)" class="f">cell</span> <span class="s">&quot;Henry&quot;</span>
+  <span class="k">do!</span>
+        <span onmouseout="hideTip(event, 'fs107', 494)" onmouseover="showTip(event, 'fs107', 494)" class="f">putWithNack</span> <span onmouseout="hideTip(event, 'fs110', 495)" onmouseover="showTip(event, 'fs110', 495)" class="i">myCell</span> <span class="s">&quot;Todd&quot;</span> <span class="o">^-&gt;</span> <span onmouseout="hideTip(event, 'fs15', 496)" onmouseover="showTip(event, 'fs15', 496)" class="f">printfn</span> <span class="s">&quot;Old value: </span><span class="pf">%s</span><span class="s">&quot;</span>
+    <span class="o">&lt;|&gt;</span> <span onmouseout="hideTip(event, 'fs26', 497)" onmouseover="showTip(event, 'fs26', 497)" class="f">timeOutMillis</span> <span class="n">0</span> <span class="o">^-&gt;.</span> <span onmouseout="hideTip(event, 'fs15', 498)" onmouseover="showTip(event, 'fs15', 498)" class="f">printfn</span> <span class="s">&quot;Timed out…&quot;</span>
+
+  <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs93', 499)" onmouseover="showTip(event, 'fs93', 499)" class="i">value</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs106', 500)" onmouseover="showTip(event, 'fs106', 500)" class="f">get</span> <span onmouseout="hideTip(event, 'fs110', 501)" onmouseover="showTip(event, 'fs110', 501)" class="i">myCell</span>
+  <span onmouseout="hideTip(event, 'fs15', 502)" onmouseover="showTip(event, 'fs15', 502)" class="f">printfn</span> <span class="s">&quot;Current value: </span><span class="pf">%s</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs93', 503)" onmouseover="showTip(event, 'fs93', 503)" class="i">value</span>
+}
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment fade-down">
+Output:
+<table class="pre"><tr><td><pre><code>Timed out…
+Current value: Henry</code></pre></td></tr></table>
+</div>
+</section>
+</section>
+<section >
+<section >
+<h2 style="position:relative;height:0" class="fragment fade-out" data-autoslide="500">What do we lose?</h2>
+<h2 class="fragment">What don't we get for free?</h2>
+</section>
+<section >
+<h2>Supervision</h2>
+</section>
+<section >
+<h3>Simple supervision</h3>
+<div class="fragment">
+Server that can fail
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+<span class="l">4: </span>
+<span class="l">5: </span>
+<span class="l">6: </span>
+<span class="l">7: </span>
+<span class="l">8: </span>
+<span class="l">9: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs113', 504)" onmouseover="showTip(event, 'fs113', 504)" class="f">failableServer</span> <span onmouseout="hideTip(event, 'fs114', 505)" onmouseover="showTip(event, 'fs114', 505)" class="i">ch</span> <span class="o">=</span>
+  <span onmouseout="hideTip(event, 'fs6', 506)" onmouseover="showTip(event, 'fs6', 506)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs115', 507)" onmouseover="showTip(event, 'fs115', 507)" class="f">forever</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs22', 508)" onmouseover="showTip(event, 'fs22', 508)" class="i">job</span> {
+    <span onmouseout="hideTip(event, 'fs15', 509)" onmouseover="showTip(event, 'fs15', 509)" class="f">printfn</span> <span class="s">&quot;Ready for next message&quot;</span>
+    <span class="k">let!</span> <span onmouseout="hideTip(event, 'fs116', 510)" onmouseover="showTip(event, 'fs116', 510)" class="i">value</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 511)" onmouseover="showTip(event, 'fs36', 511)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs41', 512)" onmouseover="showTip(event, 'fs41', 512)" class="f">take</span> <span onmouseout="hideTip(event, 'fs114', 513)" onmouseover="showTip(event, 'fs114', 513)" class="i">ch</span>
+    <span class="k">if</span> <span onmouseout="hideTip(event, 'fs116', 514)" onmouseover="showTip(event, 'fs116', 514)" class="i">value</span> <span class="o">&lt;</span> <span class="n">0</span> <span class="k">then</span>
+      <span onmouseout="hideTip(event, 'fs117', 515)" onmouseover="showTip(event, 'fs117', 515)" class="f">failwith</span> <span class="s">&quot;Negative values make me sad&quot;</span>
+    <span class="k">else</span>
+      <span onmouseout="hideTip(event, 'fs15', 516)" onmouseover="showTip(event, 'fs15', 516)" class="f">printfn</span> <span class="s">&quot;Received </span><span class="pf">%i</span><span class="s">&quot;</span> <span onmouseout="hideTip(event, 'fs116', 517)" onmouseover="showTip(event, 'fs116', 517)" class="i">value</span>
+  }
+</code></pre></td>
+</tr>
+</table>
+</div>
+<div class="fragment fade-up">
+This server will throw an exception if it receives negative values
+</div>
+</section>
+<section >
+<h3>Simple supervision</h3>
+<div class="fragment fade-down">
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+<span class="l">12: </span>
+<span class="l">13: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span class="k">let</span> <span onmouseout="hideTip(event, 'fs118', 518)" onmouseover="showTip(event, 'fs118', 518)" class="f">withSupervisor</span> <span onmouseout="hideTip(event, 'fs119', 519)" onmouseover="showTip(event, 'fs119', 519)" class="f">supervise</span> <span onmouseout="hideTip(event, 'fs120', 520)" onmouseover="showTip(event, 'fs120', 520)" class="i">job</span> <span class="o">=</span>
+  <span onmouseout="hideTip(event, 'fs119', 521)" onmouseover="showTip(event, 'fs119', 521)" class="f">supervise</span> <span onmouseout="hideTip(event, 'fs120', 522)" onmouseover="showTip(event, 'fs120', 522)" class="i">job</span>
+
+<span class="k">let</span> <span class="k">rec</span> <span onmouseout="hideTip(event, 'fs121', 523)" onmouseover="showTip(event, 'fs121', 523)" class="f">restartOnException</span> <span onmouseout="hideTip(event, 'fs122', 524)" onmouseover="showTip(event, 'fs122', 524)" class="i">onRestart</span> <span onmouseout="hideTip(event, 'fs123', 525)" onmouseover="showTip(event, 'fs123', 525)" class="i">server</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs22', 526)" onmouseover="showTip(event, 'fs22', 526)" class="i">job</span> {
+  <span class="k">try</span>
+    <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs123', 527)" onmouseover="showTip(event, 'fs123', 527)" class="i">server</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs23', 528)" onmouseover="showTip(event, 'fs23', 528)" class="f">asJob</span>
+  <span class="k">with</span> <span onmouseout="hideTip(event, 'fs124', 529)" onmouseover="showTip(event, 'fs124', 529)" class="i">exn</span> <span class="k">-&gt;</span>
+    <span onmouseout="hideTip(event, 'fs15', 530)" onmouseover="showTip(event, 'fs15', 530)" class="f">printfn</span> <span class="s">&quot;Child had exception; restarting: </span><span class="pf">%s</span><span class="s">: </span><span class="pf">%s</span><span class="s">&quot;</span>
+      (<span onmouseout="hideTip(event, 'fs124', 531)" onmouseover="showTip(event, 'fs124', 531)" class="i">exn</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs125', 532)" onmouseover="showTip(event, 'fs125', 532)" class="f">GetType</span>()<span class="o">.</span><span class="i">Name</span>)
+      <span onmouseout="hideTip(event, 'fs124', 533)" onmouseover="showTip(event, 'fs124', 533)" class="i">exn</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs126', 534)" onmouseover="showTip(event, 'fs126', 534)" class="i">Message</span>
+    <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs122', 535)" onmouseover="showTip(event, 'fs122', 535)" class="i">onRestart</span> <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs23', 536)" onmouseover="showTip(event, 'fs23', 536)" class="f">asJob</span>
+    <span class="k">return!</span> <span onmouseout="hideTip(event, 'fs121', 537)" onmouseover="showTip(event, 'fs121', 537)" class="f">restartOnException</span> <span onmouseout="hideTip(event, 'fs122', 538)" onmouseover="showTip(event, 'fs122', 538)" class="i">onRestart</span> <span onmouseout="hideTip(event, 'fs123', 539)" onmouseover="showTip(event, 'fs123', 539)" class="i">server</span>
+}
+</code></pre></td>
+</tr>
+</table>
+</div>
+</section>
+<section >
+<h3>Simple supervision</h3>
+<p>Test it out</p>
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
+<span class="l"> 2: </span>
+<span class="l"> 3: </span>
+<span class="l"> 4: </span>
+<span class="l"> 5: </span>
+<span class="l"> 6: </span>
+<span class="l"> 7: </span>
+<span class="l"> 8: </span>
+<span class="l"> 9: </span>
+<span class="l">10: </span>
+<span class="l">11: </span>
+<span class="l">12: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip highlighted"><code lang="fsharp"><span onmouseout="hideTip(event, 'fs5', 540)" onmouseover="showTip(event, 'fs5', 540)" class="f">run</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs22', 541)" onmouseover="showTip(event, 'fs22', 541)" class="i">job</span> {
+  <span class="k">let</span> <span onmouseout="hideTip(event, 'fs127', 542)" onmouseover="showTip(event, 'fs127', 542)" class="i">evilCh</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs36', 543)" onmouseover="showTip(event, 'fs36', 543)" class="t">Ch</span> ()
+  <span class="k">let</span> <span onmouseout="hideTip(event, 'fs128', 544)" onmouseover="showTip(event, 'fs128', 544)" class="f">supervisor</span> <span class="o">=</span>
+    <span onmouseout="hideTip(event, 'fs121', 545)" onmouseover="showTip(event, 'fs121', 545)" class="f">restartOnException</span> <span class="o">&lt;|</span> <span onmouseout="hideTip(event, 'fs26', 546)" onmouseover="showTip(event, 'fs26', 546)" class="f">timeOutMillis</span> <span class="n">10</span>
+  <span class="k">let</span> <span onmouseout="hideTip(event, 'fs123', 547)" onmouseover="showTip(event, 'fs123', 547)" class="i">server</span> <span class="o">=</span>
+    <span onmouseout="hideTip(event, 'fs113', 548)" onmouseover="showTip(event, 'fs113', 548)" class="f">failableServer</span> <span onmouseout="hideTip(event, 'fs127', 549)" onmouseover="showTip(event, 'fs127', 549)" class="i">evilCh</span>
+    <span class="o">|&gt;</span> <span onmouseout="hideTip(event, 'fs118', 550)" onmouseover="showTip(event, 'fs118', 550)" class="f">withSupervisor</span> <span onmouseout="hideTip(event, 'fs128', 551)" onmouseover="showTip(event, 'fs128', 551)" class="f">supervisor</span>
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs6', 552)" onmouseover="showTip(event, 'fs6', 552)" class="t">Job</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs129', 553)" onmouseover="showTip(event, 'fs129', 553)" class="f">start</span> <span onmouseout="hideTip(event, 'fs123', 554)" onmouseover="showTip(event, 'fs123', 554)" class="i">server</span>
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs36', 555)" onmouseover="showTip(event, 'fs36', 555)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs73', 556)" onmouseover="showTip(event, 'fs73', 556)" class="f">give</span> <span onmouseout="hideTip(event, 'fs127', 557)" onmouseover="showTip(event, 'fs127', 557)" class="i">evilCh</span> <span class="n">10</span>
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs36', 558)" onmouseover="showTip(event, 'fs36', 558)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs73', 559)" onmouseover="showTip(event, 'fs73', 559)" class="f">give</span> <span onmouseout="hideTip(event, 'fs127', 560)" onmouseover="showTip(event, 'fs127', 560)" class="i">evilCh</span> <span class="o">-</span><span class="n">10</span>
+  <span class="k">do!</span> <span onmouseout="hideTip(event, 'fs36', 561)" onmouseover="showTip(event, 'fs36', 561)" class="t">Ch</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs73', 562)" onmouseover="showTip(event, 'fs73', 562)" class="f">give</span> <span onmouseout="hideTip(event, 'fs127', 563)" onmouseover="showTip(event, 'fs127', 563)" class="i">evilCh</span> <span class="n">20</span>
+}
+</code></pre></td>
+</tr>
+</table>
+<div class="fragment fade-down">
+Output:
+<table class="pre"><tr><td><pre><code>Ready for next message
+Received 10
+Ready for next message
+Child had exception; restarting: Exception: Negative values make me sad
+Ready for next message
+Received 20
+Ready for next message</code></pre></td></tr></table>
+</div>
+</section>
+</section>
+<section >
+<h2>Distribution</h2>
+<div class="fragment fade-right" style="margin-top:2em">
+No story here
+</div>
+<div class="fragment fade-left" style="margin-top:1em;margin-bottom:1em">
+Hopac is not designed for this use case
+</div>
+<div class="fragment fade-up">
+Look elsewhere for your distribution story
+</div>
+</section>
+<section >
+<h2>Pre-emption</h2>
+<div class="fragment fade-right" style="margin-top:2em">
+Hopac's scheduler is cooperative
+</div>
+<div class="fragment fade-left" style="margin-top:1em;margin-bottom:1em">
+It will not pre-empt threads like the OS scheduler
+</div>
+<div class="fragment fade-up">
+You can do uncooperative things that starve threads
+</div>
+</section>
+<section >
+<h2>The Reactive Manifesto</h2>
+<div class="fragment fade-right" style="margin-top:2em">
+Synchronous rendezvous is not at odds with the Rective Manifesto
+</div>
+<div class="fragment fade-left" style="margin-top:1em;margin-bottom:1em">
+The Reactive Manifesto focuses on systems architecture problems
+</div>
+<div class="fragment fade-up">
+Inside a component, synchronous rendezvous is fine
+</div>
+</section>
+<section >
+<blockquote>
+<p>Hopac is designed and optimized to scale as the number of such relatively
+independent lightweight elements is increased.</p>
+</blockquote>
+<div class="fragment fade-down">
+<h4>Specifically</h4>
+<ul>
+<li>Build systems</li>
+<li>Web servers</li>
+<li>UI</li>
+<li>
+Simulations
+</div>
+</li>
+</ul>
+</section>
+<section >
+<h3>Hopac's Power</h3>
+<ul>
+<li class="fragment fade-down">Composable primitives</li>
+<li class="fragment fade-down">Lightweight threads</li>
+<li class="fragment fade-down">Minimal overhead to server–client interactions</li>
+<li class="fragment fade-down">Context switches between threads are highly optimized</li>
+<li class="fragment fade-down">Garbage collection</li>
+</ul>
+</section>
+<section >
+<h2>Resources</h2>
+<ul>
+<li>
+<a href="https://hopac.github.io/Hopac/Hopac.html">Hopac</a>
+<ul>
+<li><a href="https://github.com/Hopac/Hopac/blob/master/Docs/Programming.md">Programming Guide</a></li>
+<li><a href="https://github.com/Hopac/Hopac/blob/master/Docs/Alternatives.md">Cancellation of Async on Negative Acknowledgement</a></li>
+</ul>
+</li>
+<li><a href="http://golang.org/">Go</a></li>
+<li><a href="http://clojure.com/blog/2013/06/28/clojure-core-async-channels.html">core.async</a></li>
+</ul>
+<p><div style="float:right">
+<p><strong>Marcus Griep</strong><br/>
+<a href="https://twitter.com/neoeinstein">@neoeinstein</a><br/>
+<a href="https://neoeinstein.github.io/">neoeinstein.github.io</a></br>
+mgriep@cimpress.com</p>
+</div></p>
+</section>
+
+
+        </div>
+    </div>
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.js"></script>
+    <script>
+        // Add the nohighlight class and data-noescape attribute to code elements that have already been formatted by FSharp.Formatting
+        $('pre.highlighted code').addClass('nohighlight').attr('data-noescape', '');
+
+        // Full list of configuration options available here:
+        // https://github.com/hakimel/reveal.js#configuration
+        Reveal.initialize({
+            controls: true,
+            progress: true,
+            history: true,
+            center: true,
+
+            transition: 'default', // default/cube/page/concave/zoom/linear/fade/none
+
+            // Parallax scrolling
+            // parallaxBackgroundImage: 'https://s3.amazonaws.com/hakim-static/reveal-js/reveal-parallax-1.jpg',
+            // parallaxBackgroundSize: '2100px 900px',
+
+            // Optional libraries used to extend on reveal.js
+            dependencies: [
+                { src: 'lib/js/classList.js', condition: function () { return !document.body.classList; } },
+                { src: 'plugin/markdown/marked.js', condition: function () { return !!document.querySelector('[data-markdown]'); } },
+                { src: 'plugin/markdown/markdown.js', condition: function () { return !!document.querySelector('[data-markdown]'); } },
+                { src: 'plugin/highlight/highlight.js', async: true, callback: function () { hljs.initHighlightingOnLoad(); } },
+                { src: 'plugin/zoom-js/zoom.js', async: true, condition: function () { return !!document.body.classList; } },
+                { src: 'plugin/notes/notes.js', async: true, condition: function () { return !!document.body.classList; } }
+            ]
+        });
+
+    </script>
+</body>
+</html>
+
