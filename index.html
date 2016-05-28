@@ -183,6 +183,10 @@
 <br/>
 <br/>
 <h3>Marcus Griep</h3>
+<div style="float:right;position:fixed;bottom:-200px;right:-100px;text-align:right">
+Slides online:<br/>
+<a href="https://bit.ly/HopacLambdaConf2016">bit.ly/HopacLambdaConf2016</a>
+</div>
 <aside class="notes">
 0:45<br/>
 Introduce self<br/>
@@ -357,7 +361,18 @@ What if you need a reply?<br/>
 <li class="fragment fade-down">Inspired by Concurrent ML</li>
 <li class="fragment fade-down">Uses synchronous rendezvous</li>
 <li class="fragment fade-down">Provides composable primitives</li>
+<li class="fragment fade-down">Cares about scalabilty</li>
 </ul>
+<div class="fragment fade-down" style="margin-top:1em">
+<table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre></td>
+<td class="snippet"><pre class="fssnip"><code lang="text">WARNING: You are using single-threaded workstation garbage
+collection, which means that parallel programs cannot scale.
+Please configure your program to use server garbage collection.
+</code></pre></td></tr></table>
+</div>
 <aside class="notes">
 12:00<br/>
 Now let's move on and talk about Hopac.<br/>
@@ -1037,13 +1052,89 @@ This has the semantic we want
 </section>
 <section >
 <section >
-<h3>Terse Example</h3>
-<div class="fragment" data-autoslide="1">
-<div class="fragment grow" style="font-size:90%;color:rgb(229,50,50)">
+<h2>Infix Operators</h2>
+<div class="fragment" style="font-size:150%;margin-top:2em" data-fragment-index="1">
+<div class="fragment grow" style="font-size:90%;color:rgb(229,50,50)" data-fragment-index="1">
 <em>Warning: Infix operators inbound</em>
 </div>
 </div>
+</section>
+<section >
+<h3>Infix Operators</h3>
+<div class="opListGroup">
+<div class="opListColumn messaging">
+<div class="opListHeader">Messaging</div>
+<dl class="opList">
+<dt><code>*<-</code></dt><dd>Ch.give</dd>
+<dt><code>*<+</code></dt><dd>Ch.send</dd>
+<dt><code>*<=</code></dt><dd>IVar.fill</dd>
+<dt><code>*<=!</code></dt><dd>IVar.fillFailure</dd>
+<dt><code>*<<=</code></dt><dd>MVar.fill</dd>
+<dt><code>*<<+</code></dt><dd>Mailbox.send</dd>
+</dl>
+<div class="opListHeader">Patterns</div>
+<dl class="opList patterns">
+<dt><code>*<+->=</code></dt><dd>Nack Job</dd>
+<dt><code>*<+->-</code></dt><dd>Nack Fun</dd>
+<dt><code>*<-=>=</code></dt><dd>IVar Job<sup>give</sup></dd>
+<dt><code>*<-=>-</code></dt><dd>IVar Fun<sup>give</sup></dd>
+<dt><code>*<+=>=</code></dt><dd>IVar Job<sup>reply</sup></dd>
+<dt><code>*<+=>-</code></dt><dd>IVar Fun<sup>reply</sup></dd>
+</dl>
+</div>
+<div class="opListColumn actions">
+<div class="opListHeader">Actions</div>
+<dl class="opList">
+<dt><code>^=></code></dt><dd>Alt.afterJob</dd>
+<dt><code>^-></code></dt><dd>Alt.afterFun</dd>
+<dt><code>^=>.</code></dt><dd>Alt.afterJob<sup>*</sup></dd>
+<dt><code>^->.</code></dt><dd>Alt.afterFun<sup>*</sup></dd>
+<dt><code>^->!</code></dt><dd>Alt.raises</dd>
+</dl>
+</div>
+<div class="opListColumn choice">
+<div class="opListHeader">Choice</div>
+<dl class="opList">
+<dt><code><|></code></dt><dd>Alt.choose</dd>
+<dt><code><~></code></dt><dd>Alt.chooser</dd>
+<dt><code><|>*</code></dt><dd>Alt.choose<sup>memo</sup></dd>
+</dl>
+<div class="opListHeader">Combine</div>
+<dl class="opList">
+<dt><code><&></code></dt><dd>Pair sequential</dd>
+<dt><code><*></code></dt><dd>Pair parallel</dd>
+<dt><code><+></code></dt><dd>Pair alts</dd>
+</dl>
+</div>
+<div class="opListColumn sequencing">
+<div class="opListHeader">Sequencing</div>
+<dl class="opList">
+<dt><code>>>=</code></dt><dd>Job.bind</dd>
+<dt><code>>>=*</code></dt><dd>Job.bind<sup>memo</sup></dd>
+<dt><code>>>-</code></dt><dd>Job.map</dd>
+<dt><code>>>-*</code></dt><dd>Job.map<sup>memo</sup></dd>
+<dt><code>>>=.</code></dt><dd>Job.bind<sup>*</sup></dd>
+<dt><code>>>=*.</code></dt><dd>Job.bind<sup>*,memo</sup></dd>
+<dt><code>>>-.</code></dt><dd>Job.map<sup>*</sup></dd>
+<dt><code>>>-*.</code></dt><dd>Job.map<sup>*,memo</sup></dd>
+<dt><code>>=></code></dt><dd>Compose</dd>
+<dt><code>>=>*</code></dt><dd>Compose<sup>memo</sup></dd>
+<dt><code>>-></code></dt><dd>Composs/Map</dd>
+<dt><code>>->*</code></dt><dd>Compose/Map<sup>memo</sup></dd>
+</dl>
+</div>
+</div>
+<div class="opListFooter">
+<div class="footnote">*: Ignore result of previous op</div>
+<div class="footnote">memp: Memoize as <code>Promise</code></div>
+<div class="footnote">give: Sync on giving message</div>
+<div class="footnote">reply: Sync on reading reply</div>
+</div>
+</section>
+<section >
+<h3>Infix Operators</h3>
 <div class="fragment fade-down">
+Server
 <table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l"> 1: </span>
 <span class="l"> 2: </span>
 <span class="l"> 3: </span>
@@ -1072,6 +1163,7 @@ This has the semantic we want
 </table>
 </div>
 <div class="fragment fade-down">
+Client
 <table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
 <span class="l">2: </span>
 <span class="l">3: </span>
@@ -1085,6 +1177,8 @@ This has the semantic we want
 </div>
 </section>
 <section >
+<h3>Infix Operators</h3>
+<p>Test it out</p>
 <table class="pre"><tr><td class="lines"><pre class="fssnip"><span class="l">1: </span>
 <span class="l">2: </span>
 <span class="l">3: </span>
@@ -1116,8 +1210,8 @@ Current value: Henry</code></pre></td></tr></table>
 </section>
 <section >
 <section >
-<h2 style="position:relative;height:0" class="fragment fade-out" data-autoslide="500">What do we lose?</h2>
-<h2 class="fragment">What don't we get for free?</h2>
+<h2 style="position:relative;height:0" class="fragment fade-out" data-fragment-index="1">What do we lose?</h2>
+<h2 class="fragment" data-fragment-index="1">What don't we get for free?</h2>
 </section>
 <section >
 <h2>Supervision</h2>

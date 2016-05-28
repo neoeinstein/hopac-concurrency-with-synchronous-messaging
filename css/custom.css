@@ -18,6 +18,103 @@
     font-feature-settings: "liga" 0;
 }
 
+.reveal div.opListGroup {
+    position:relative;
+    left:-100px;
+    width: 150%;
+    height: 400px;
+}
+
+.reveal div.opListColumn {
+    float:left;
+}
+
+.reveal div.opListHeader {
+    margin-bottom: 0.5em
+}
+
+.reveal dl.opList {
+    list-style: none;
+    font-size: 90%;
+    width:100%;
+    overflow: hidden;
+    padding:0;
+    margin:0;
+}
+
+.reveal dl.opList dt {
+    float:left;
+    padding:0;
+    margin:0;
+    clear:both;
+    white-space: nowrap;
+}
+
+.reveal dl.opList dd {
+    float:left;
+    width:0px;
+    padding:0;
+    margin:0;
+    white-space: nowrap;
+}
+
+.reveal dl.opList dd sup {
+    vertical-align: text-top;
+    top: initial;
+    font-size: 75%;
+}
+
+.reveal div.messaging {
+    width: 300px;
+}
+
+.reveal div.actions {
+    width: 260px;
+}
+
+.reveal div.choice {
+    width: 295px;
+}
+
+.reveal .sequencing {
+    width: 360px;
+}
+
+.reveal .messaging dl.opList dt {
+    width:90px;
+}
+
+.reveal .messaging dl.opList.patterns dt {
+    width:140px;
+}
+
+.reveal .actions dl.opList dt {
+    width:90px;
+}
+
+.reveal .choice dl.opList dt {
+    width:90px;
+}
+
+.reveal .sequencing dl.opList dt {
+    width:110px;
+}
+
+.reveal .opListFooter {
+    clear:both;
+    position:relative;
+    left:-250px;
+    text-align: center;
+    font-size: 60%;
+    width:150%;
+}
+
+.reveal .opListFooter .footnote {
+    display: inline-block;
+    margin-left: 15px;
+    margin-right: 15px;
+}
+
 /*********************************************
  * VIEW FRAGMENTS
  *********************************************/
