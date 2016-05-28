@@ -179,11 +179,15 @@
         <!-- Any section element inside of this container is displayed as a slide -->
         <div class="slides">
             <section >
+<h1>Hopac</h1>
 <h2>Powering Concurrency with Synchronous Messaging</h2>
 <br/>
 <br/>
 <h3>Marcus Griep</h3>
-<div style="float:right;position:fixed;bottom:-200px;right:-100px;text-align:right">
+<p><div>
+<a href="https://twitter.com/neoeinstein">@neoeinstein</a>
+</div></p>
+<div style="float:right;position:fixed;bottom:-100px;right:-100px;text-align:right">
 Slides online:<br/>
 <a href="https://bit.ly/HopacLambdaConf2016">bit.ly/HopacLambdaConf2016</a>
 </div>
@@ -1046,7 +1050,7 @@ This has the semantic we want
 <em>Enable the client to explore multiple options</em>
 </div>
 <div class="fragment fade-up" style="font-size:125%">
-<em>Very complicated to implement using actors</em>
+<em>Very complicated to implement with asynchronous messaging</em>
 </div>
 </section>
 </section>
@@ -1055,7 +1059,7 @@ This has the semantic we want
 <h2>Infix Operators</h2>
 <div class="fragment" style="font-size:150%;margin-top:2em" data-fragment-index="1">
 <div class="fragment grow" style="font-size:90%;color:rgb(229,50,50)" data-fragment-index="1">
-<em>Warning: Infix operators inbound</em>
+<em>Warning: Crazy custom operators inbound</em>
 </div>
 </div>
 </section>
@@ -1076,10 +1080,10 @@ This has the semantic we want
 <dl class="opList patterns">
 <dt><code>*<+->=</code></dt><dd>Nack Job</dd>
 <dt><code>*<+->-</code></dt><dd>Nack Fun</dd>
-<dt><code>*<-=>=</code></dt><dd>IVar Job<sup>give</sup></dd>
-<dt><code>*<-=>-</code></dt><dd>IVar Fun<sup>give</sup></dd>
-<dt><code>*<+=>=</code></dt><dd>IVar Job<sup>reply</sup></dd>
-<dt><code>*<+=>-</code></dt><dd>IVar Fun<sup>reply</sup></dd>
+<dt><code>*<-=>=</code></dt><dd>IVar Job<sup>^</sup></dd>
+<dt><code>*<-=>-</code></dt><dd>IVar Fun<sup>^</sup></dd>
+<dt><code>*<+=>=</code></dt><dd>IVar Job<sup>+</sup></dd>
+<dt><code>*<+=>-</code></dt><dd>IVar Fun<sup>+</sup></dd>
 </dl>
 </div>
 <div class="opListColumn actions">
@@ -1087,8 +1091,8 @@ This has the semantic we want
 <dl class="opList">
 <dt><code>^=></code></dt><dd>Alt.afterJob</dd>
 <dt><code>^-></code></dt><dd>Alt.afterFun</dd>
-<dt><code>^=>.</code></dt><dd>Alt.afterJob<sup>*</sup></dd>
-<dt><code>^->.</code></dt><dd>Alt.afterFun<sup>*</sup></dd>
+<dt><code>^=>.</code></dt><dd>Alt.afterJob<sup>i</sup></dd>
+<dt><code>^->.</code></dt><dd>Alt.afterFun<sup>i</sup></dd>
 <dt><code>^->!</code></dt><dd>Alt.raises</dd>
 </dl>
 </div>
@@ -1097,9 +1101,9 @@ This has the semantic we want
 <dl class="opList">
 <dt><code><|></code></dt><dd>Alt.choose</dd>
 <dt><code><~></code></dt><dd>Alt.chooser</dd>
-<dt><code><|>*</code></dt><dd>Alt.choose<sup>memo</sup></dd>
+<dt><code><|>*</code></dt><dd>Alt.choose<sup>*</sup></dd>
 </dl>
-<div class="opListHeader">Combine</div>
+<div class="opListHeader" style="margin-top:1em">Combine</div>
 <dl class="opList">
 <dt><code><&></code></dt><dd>Pair sequential</dd>
 <dt><code><*></code></dt><dd>Pair parallel</dd>
@@ -1110,25 +1114,25 @@ This has the semantic we want
 <div class="opListHeader">Sequencing</div>
 <dl class="opList">
 <dt><code>>>=</code></dt><dd>Job.bind</dd>
-<dt><code>>>=*</code></dt><dd>Job.bind<sup>memo</sup></dd>
+<dt><code>>>=*</code></dt><dd>Job.bind<sup>*</sup></dd>
 <dt><code>>>-</code></dt><dd>Job.map</dd>
-<dt><code>>>-*</code></dt><dd>Job.map<sup>memo</sup></dd>
-<dt><code>>>=.</code></dt><dd>Job.bind<sup>*</sup></dd>
-<dt><code>>>=*.</code></dt><dd>Job.bind<sup>*,memo</sup></dd>
-<dt><code>>>-.</code></dt><dd>Job.map<sup>*</sup></dd>
-<dt><code>>>-*.</code></dt><dd>Job.map<sup>*,memo</sup></dd>
+<dt><code>>>-*</code></dt><dd>Job.map<sup>*</sup></dd>
+<dt><code>>>=.</code></dt><dd>Job.bind<sup>i</sup></dd>
+<dt><code>>>=*.</code></dt><dd>Job.bind<sup>i,*</sup></dd>
+<dt><code>>>-.</code></dt><dd>Job.map<sup>i</sup></dd>
+<dt><code>>>-*.</code></dt><dd>Job.map<sup>i,*</sup></dd>
 <dt><code>>=></code></dt><dd>Compose</dd>
-<dt><code>>=>*</code></dt><dd>Compose<sup>memo</sup></dd>
+<dt><code>>=>*</code></dt><dd>Compose<sup>*</sup></dd>
 <dt><code>>-></code></dt><dd>Composs/Map</dd>
-<dt><code>>->*</code></dt><dd>Compose/Map<sup>memo</sup></dd>
+<dt><code>>->*</code></dt><dd>Compose/Map<sup>*</sup></dd>
 </dl>
 </div>
 </div>
 <div class="opListFooter">
-<div class="footnote">*: Ignore result of previous op</div>
-<div class="footnote">memp: Memoize as <code>Promise</code></div>
-<div class="footnote">give: Sync on giving message</div>
-<div class="footnote">reply: Sync on reading reply</div>
+<div class="footnote">i: Ignore result of previous op</div>
+<div class="footnote">*: Memoize as <code>Promise</code></div>
+<div class="footnote">^: Sync on giving message</div>
+<div class="footnote">+: Sync on reading reply</div>
 </div>
 </section>
 <section >
@@ -1210,11 +1214,10 @@ Current value: Henry</code></pre></td></tr></table>
 </section>
 <section >
 <section >
-<h2 style="position:relative;height:0" class="fragment fade-out" data-fragment-index="1">What do we lose?</h2>
-<h2 class="fragment" data-fragment-index="1">What don't we get for free?</h2>
-</section>
-<section >
 <h2>Supervision</h2>
+<div class="fragment" style="font-size:150%;margin-top:2em">
+<em>But actor systems come with supervisors!</em>
+</div>
 </section>
 <section >
 <h3>Simple supervision</h3>
@@ -1362,30 +1365,32 @@ Inside a component, synchronous rendezvous is fine
 </div>
 </section>
 <section >
-<blockquote>
-<p>Hopac is designed and optimized to scale as the number of such relatively
-independent lightweight elements is increased.</p>
-</blockquote>
-<div class="fragment fade-down">
-<h4>Specifically</h4>
-<ul>
-<li>Build systems</li>
-<li>Web servers</li>
-<li>UI</li>
-<li>
-Simulations
-</div>
-</li>
-</ul>
-</section>
-<section >
 <h3>Hopac's Power</h3>
 <ul>
-<li class="fragment fade-down">Composable primitives</li>
 <li class="fragment fade-down">Lightweight threads</li>
+<li class="fragment fade-down">Garbage collection friendly</li>
 <li class="fragment fade-down">Minimal overhead to server–client interactions</li>
 <li class="fragment fade-down">Context switches between threads are highly optimized</li>
-<li class="fragment fade-down">Garbage collection</li>
+<li class="fragment fade-down">Composable primitives</li>
+</ul>
+<ul style="list-style:none;margin-top:1em">
+<li class="fragment fade-down"><code>Ch<'a></code> is an <code>Alt<'a></code></li>
+<li class="fragment fade-down"><code>IVar<'a></code> is a <code>Promise<'a></code> <div class="fragment fade-right" style="display:inline-block">is an <code>Alt<'a></code></div></li>
+<li class="fragment fade-down"><code>MVar<'a></code> is an <code>Alt<'a></code></li>
+<li class="fragment fade-down"><code>Mailbox<'a></code> is an <code>Alt<'a></code></li>
+</ul>
+<div class="fragment fade-up" style="margin-top:1em">
+<code>Alt<'a></code>s compose to <code>Alt<'a></code>
+</div>
+</section>
+<section >
+<h3>Hopac Streams</h3>
+<ul>
+<li class="fragment fade-right">Non-deterministic stream of values <div class="fragment fade-right" style="display:inline-block">(choice stream)</div></li>
+<li class="fragment fade-right">Similar to Rx observable sequences</li>
+<li class="fragment fade-right">Handle same operations as oridinary lazy streams<div class="fragment fade-down">Provides <code>Stream.foldBack</code> and <code>Stream.groupByFun</code></div></li>
+<li class="fragment fade-right">Consistent<div class="fragment fade-down">Every consumer gets the exact same sequence of values</div><div class="fragment fade-down">No need for replay</div></li>
+<li class="fragment fade-right">Pull-based<div class="fragment fade-down">Puts the consumer of the stream in control</div></li>
 </ul>
 </section>
 <section >
@@ -1405,7 +1410,7 @@ Simulations
 <p><strong>Marcus Griep</strong><br/>
 <a href="https://twitter.com/neoeinstein">@neoeinstein</a><br/>
 <a href="https://neoeinstein.github.io/">neoeinstein.github.io</a></br>
-mgriep@cimpress.com</p>
+neoeinstein@gmail.com</p>
 </div></p>
 </section>
 
